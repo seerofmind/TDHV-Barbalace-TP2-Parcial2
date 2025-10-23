@@ -1,20 +1,36 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class collectableScript : MonoBehaviour
 {
-    public int value = 1; // valor de la moneda (puede variar si quer�s monedas especiales)
+    [Header("Collectable Data")]
+    public CollectableSO collectableData; // 🔹 reference your SO
+
+    // Optional runtime getter
+    public int Value => collectableData != null ? collectableData.value : 1;
 
     private void OnTriggerEnter(Collider other)
     {
-        // Check if the object that touched us has a CharacterController (the player)
-        if (other.GetComponent<CharacterController>())
-        {
-            // You can also increment a score or coins here
-            // Example:
-            // GameManager.instance.AddCoin(1);
+        Debug.Log($"Something collided: {other.name}");
 
-            // Destroy collectible
+        if (other.GetComponentInParent<CharacterController>())
+
+        {
+            int coinValue = Value;
+            Debug.Log($"Collected coin with value: {coinValue}");
             Destroy(gameObject);
         }
     }
+
+    // On the PlayerStats script
+    private void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        var collectable = hit.collider.GetComponent<collectableScript>();
+        if (collectable != null)
+        {
+            Debug.Log($"Collected coin with value: {collectable.Value}");
+            Destroy(collectable.gameObject);
+        }
+    }
+
 }
+

@@ -9,7 +9,7 @@ public class EnemyAI : MonoBehaviour
 
     [Header("References")]
     public Transform player;
-    public EnemyAI enemyData; // 🔹 ScriptableObject reference
+    public EnemySO enemyData; // 🔹 ScriptableObject reference
     private CharacterController controller;
     private PlayerStats playerStats;
 

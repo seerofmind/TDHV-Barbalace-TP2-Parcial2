@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 public class PlayerStats : MonoBehaviour
 {
     [Header("References")]
-    public PlayerStats playerData; // 🔹 Reference to the ScriptableObject
+    public PlayerSO playerData; // 🔹 Reference to the ScriptableObject
     public Transform playerCamera;
 
     [Header("Runtime Values")]
