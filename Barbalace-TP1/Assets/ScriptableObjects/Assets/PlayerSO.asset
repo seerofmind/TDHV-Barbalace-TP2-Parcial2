@@ -17,5 +17,5 @@ MonoBehaviour:
   recoveryRate: 1
   sprintDrainRate: 2
   walkSpeed: 5
-  sprintSpeed: 8
+  sprintSpeed: 12
   rotationSpeed: 10
