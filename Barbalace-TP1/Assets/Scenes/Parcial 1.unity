@@ -1230,17 +1230,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   player: {fileID: 868653660}
+  enemyData: {fileID: 0}
   maxHealth: 100
   moveSpeed: 5
   viewDistance: 10
   viewAngle: 45
-  enemy: {fileID: 775213627}
   drainDistance: 5
   drainRate: 1
   currentState: 0
-  currentHealth: 0
   damageStateDuration: 1
   respawnManager: {fileID: 2088865711}
+  enemy: {fileID: 775213627}
 --- !u!1 &826696545
 GameObject:
   m_ObjectHideFlags: 0

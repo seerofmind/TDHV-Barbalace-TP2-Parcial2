@@ -15,7 +15,7 @@ public class EnemyAI : MonoBehaviour
 
     [Header("Runtime Stats")]
     [SerializeField] public int maxHealth;
-    [SerializeField] private int currentHealth;
+    private int currentHealth;
     [SerializeField] private float moveSpeed;
     [SerializeField] private float viewDistance;
     [SerializeField] private float viewAngle;
