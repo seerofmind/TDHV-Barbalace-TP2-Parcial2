@@ -4,24 +4,20 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(CharacterController))]
 public class PlayerStats : MonoBehaviour
 {
-    [Header("Camera References")]
-    public Transform playerCamera; // used for camera-relative movement
+    [Header("References")]
+    public PlayerStats playerData; // 🔹 Reference to the ScriptableObject
+    public Transform playerCamera;
 
-    [Header("Health")]
-    [SerializeField] private int health = 100;
+    [Header("Runtime Values")]
+    [SerializeField] private int health;
+    [SerializeField] private float stamina;
+    [SerializeField] private float maxStamina;
+    [SerializeField] private float recoveryRate;
+    [SerializeField] private float sprintDrainRate;
 
-    [Header("Stamina")]
-    public float stamina = 10f;
-    [SerializeField] private float maxStamina = 10f;
-    [SerializeField] private float recoveryRate = 1f;
-    [SerializeField] private float sprintDrainRate = 2f;
-
-    
-
-    [Header("Movement Settings")]
-    public float walkSpeed = 5f;
-    public float sprintSpeed = 8f;
-    [SerializeField] private float rotationSpeed = 10f;
+    [SerializeField] private float walkSpeed;
+    [SerializeField] private float sprintSpeed;
+    [SerializeField] private float rotationSpeed;
 
     [Header("Input")]
     public PlayerInput playerInput;
@@ -33,27 +29,42 @@ public class PlayerStats : MonoBehaviour
     public enum StaminaState { Idle, Draining, Recovering }
     [SerializeField] private StaminaState staminaState = StaminaState.Idle;
 
-    private StaminaState lastStaminaState = StaminaState.Idle; // 🔹 Track previous state
-
+    private StaminaState lastStaminaState = StaminaState.Idle;
     private bool regenPaused = false;
     private bool canSprint = true;
 
     void Awake()
     {
         controller = GetComponent<CharacterController>();
-
         if (!playerInput)
             playerInput = FindFirstObjectByType<PlayerInput>();
 
         sprintAction = playerInput.actions["Sprint"];
         moveAction = playerInput.actions["Move"];
 
-
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        // 🔹 Load values from ScriptableObject
+        if (playerData != null)
+        {
+            health = playerData.health;
+            stamina = playerData.maxStamina;
+            maxStamina = playerData.maxStamina;
+            recoveryRate = playerData.recoveryRate;
+            sprintDrainRate = playerData.sprintDrainRate;
+
+            walkSpeed = playerData.walkSpeed;
+            sprintSpeed = playerData.sprintSpeed;
+            rotationSpeed = playerData.rotationSpeed;
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerStats] No PlayerData assigned!");
+        }
     }
 
-    
+
 
     void Update()
     {

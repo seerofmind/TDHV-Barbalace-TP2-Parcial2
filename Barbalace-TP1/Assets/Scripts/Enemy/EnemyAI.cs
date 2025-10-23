@@ -9,27 +9,21 @@ public class EnemyAI : MonoBehaviour
 
     [Header("References")]
     public Transform player;
+    public EnemyAI enemyData; // 🔹 ScriptableObject reference
     private CharacterController controller;
     private PlayerStats playerStats;
 
-    [Header("Enemy Stats")]
-    public int maxHealth = 100;
-    public float moveSpeed = 3f;
-
-    [Header("Vision Settings")]
-    public float viewDistance = 10f;   // Max distance
-    [Range(0f, 180f)]
-    public float viewAngle = 45f;      // Half-angle of vision cone
-
-    [Header("Proximity Stamina Drain")]
-    [SerializeField] private Transform enemy;
-    [SerializeField] private float drainDistance = 5f;
-    [SerializeField] private float drainRate = 1f;
-
+    [Header("Runtime Stats")]
+    [SerializeField] public int maxHealth;
+    [SerializeField] private int currentHealth;
+    [SerializeField] private float moveSpeed;
+    [SerializeField] private float viewDistance;
+    [SerializeField] private float viewAngle;
+    [SerializeField] private float drainDistance;
+    [SerializeField] private float drainRate;
 
     [Header("Runtime Info (Debug)")]
     [SerializeField] private EnemyState currentState = EnemyState.Normal;
-    [SerializeField] private int currentHealth;
 
     private Vector3 initialPosition;
     private Quaternion initialRotation;
@@ -38,19 +32,33 @@ public class EnemyAI : MonoBehaviour
     private float damageStateTimer = 0f;
     public float damageStateDuration = 0.5f; // stun time
 
-    private bool isDead = false;     // tracks if the enemy is dead
-    private bool drainEnabled = true; // controls stamina drain
-
+    private bool isDead = false;
+    private bool drainEnabled = true;
 
     public EnemyRespawnManager respawnManager;
 
     void Awake()
     {
         controller = GetComponent<CharacterController>();
-        currentHealth = maxHealth;
         initialPosition = transform.position;
         initialRotation = transform.rotation;
 
+        // 🔹 Load values from ScriptableObject
+        if (enemyData != null)
+        {
+            currentHealth = enemyData.maxHealth;
+            moveSpeed = enemyData.moveSpeed;
+            viewDistance = enemyData.viewDistance;
+            viewAngle = enemyData.viewAngle;
+            drainDistance = enemyData.drainDistance;
+            drainRate = enemyData.drainRate;
+        }
+        else
+        {
+            Debug.LogWarning($"[EnemyAI] No EnemyData assigned to {gameObject.name}!");
+        }
+
+        // Find player
         if (!player)
             player = FindFirstObjectByType<PlayerStats>()?.transform;
 
@@ -64,7 +72,6 @@ public class EnemyAI : MonoBehaviour
     {
         if (currentState == EnemyState.Dead || !player) return;
 
-        // Handle damage "stun"
         if (currentState == EnemyState.Damage)
         {
             damageStateTimer -= Time.deltaTime;
@@ -83,11 +90,11 @@ public class EnemyAI : MonoBehaviour
             SetState(EnemyState.Chase);
             ChasePlayer();
 
-            // Drain stamina if we have a PlayerStats ref
             if (playerStats != null)
             {
-                playerStats.ModifyStamina(-1f * Time.deltaTime); // drain 1 per second
-                playerStats.PauseRecovery(true); // stop regen
+                // 🔹 Use the drain rate from the SO
+                playerStats.ModifyStamina(-drainRate * Time.deltaTime);
+                playerStats.PauseRecovery(true);
             }
         }
         else
@@ -96,7 +103,7 @@ public class EnemyAI : MonoBehaviour
             controller.Move(Vector3.zero);
 
             if (playerStats != null)
-                playerStats.PauseRecovery(false); // allow regen again
+                playerStats.PauseRecovery(false);
         }
     }
 
@@ -249,14 +256,16 @@ public class EnemyAI : MonoBehaviour
     // --------------------------- Enemy management
     public void ClearEnemyReference(Transform enemyTransform)
     {
-        if (enemy == enemyTransform)
-            enemy = null;
+        if (enemyData == enemyTransform)
+            enemyData = null;
     }
 
+    [SerializeField] private Transform enemy; // already exists
     public void SetEnemyReference(Transform enemyTransform)
     {
         enemy = enemyTransform;
     }
+
 
 
 

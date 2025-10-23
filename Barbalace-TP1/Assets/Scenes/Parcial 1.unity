@@ -1533,6 +1533,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b2251733bfd5fdc44b2634fafda0169b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  playerData: {fileID: 868653664}
   playerCamera: {fileID: 1643465622}
   health: 100
   stamina: 10
