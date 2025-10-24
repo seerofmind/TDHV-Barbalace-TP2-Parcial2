@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 public class PlayerStats : MonoBehaviour
 {
     [Header("References")]
-    public PlayerSO playerData; // 🔹 Reference to the ScriptableObject
+    public PlayerSO playerData;
     public Transform playerCamera;
 
     [Header("Runtime Values")]
@@ -14,19 +14,22 @@ public class PlayerStats : MonoBehaviour
     [SerializeField] private float maxStamina;
     [SerializeField] private float recoveryRate;
     [SerializeField] private float sprintDrainRate;
-    [SerializeField] private float crouchSpeed = 2.5f;
-    [SerializeField] private float crouchHeight = 1f;
-    private float originalHeight;
-    private bool isCrouching = false;
+    public int CurrentHealth => health;
+
     [SerializeField] private float walkSpeed;
     [SerializeField] private float sprintSpeed;
     [SerializeField] private float rotationSpeed;
+
+    [Header("Crouch Settings")]
+    public float crouchSpeed = 2f;
+    public float crouchHeight = 1f;
+    private float originalHeight;
+    private bool isCrouching = false;
 
     [Header("Input")]
     public PlayerInput playerInput;
     private InputAction sprintAction;
     private InputAction moveAction;
-    private InputAction crouchAction;
 
     private CharacterController controller;
 
@@ -48,12 +51,11 @@ public class PlayerStats : MonoBehaviour
 
         sprintAction = playerInput.actions["Sprint"];
         moveAction = playerInput.actions["Move"];
-        crouchAction = playerInput.actions["Crouch"];
-        originalHeight = controller.height;
-
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        originalHeight = controller.height; // store the normal height
 
         // 🔹 Load values from ScriptableObject
         if (playerData != null)
@@ -74,16 +76,35 @@ public class PlayerStats : MonoBehaviour
         }
     }
 
-
-
     void Update()
     {
+        HandleCrouchInput();
         HandleStamina();
         HandleMovement();
-        HandleCrouch();
-
     }
 
+    // -------------------------------- Crouch --------------------------------
+    private void HandleCrouchInput()
+    {
+        bool crouchPressed = Keyboard.current.cKey.wasPressedThisFrame ||
+                             Keyboard.current.leftCtrlKey.wasPressedThisFrame;
+
+        if (crouchPressed)
+        {
+            isCrouching = !isCrouching; // toggle crouch
+
+            if (isCrouching)
+            {
+                controller.height = crouchHeight;
+            }
+            else
+            {
+                controller.height = originalHeight;
+            }
+        }
+    }
+
+    // -------------------------------- Stamina --------------------------------
     private void HandleStamina()
     {
         float delta = Time.deltaTime;
@@ -92,13 +113,11 @@ public class PlayerStats : MonoBehaviour
         bool isSprinting = false;
 
         // Sprint drain
-        if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint)
+        if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint && !isCrouching)
         {
             totalDrain += sprintDrainRate;
             isSprinting = true;
         }
-
-
 
         // Apply drain
         if (totalDrain > 0f)
@@ -107,14 +126,14 @@ public class PlayerStats : MonoBehaviour
             if (stamina <= 0f)
             {
                 stamina = 0f;
-                canSprint = false; // 👈 lock sprint when drained
+                canSprint = false;
             }
             staminaState = StaminaState.Draining;
             UpdateStaminaState(staminaState, stamina);
         }
         else
         {
-            // Recover ONLY if not paused, not near enemy, not sprinting
+            // Recover if not paused, not near enemy, not sprinting
             if (!regenPaused && !isNearEnemy && !isSprinting && stamina < maxStamina)
             {
                 stamina += recoveryRate * delta;
@@ -142,11 +161,11 @@ public class PlayerStats : MonoBehaviour
         }
     }
 
+    // -------------------------------- Movement --------------------------------
     private void HandleMovement()
     {
         Vector2 input = moveAction.ReadValue<Vector2>();
 
-        // Direction relative to camera
         Vector3 camForward = playerCamera.forward;
         Vector3 camRight = playerCamera.right;
 
@@ -157,10 +176,11 @@ public class PlayerStats : MonoBehaviour
 
         Vector3 move = camRight * input.x + camForward * input.y;
 
-        float currentSpeed = isCrouching ? crouchSpeed : walkSpeed;
+        float currentSpeed = walkSpeed;
 
-
-        if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint)
+        if (isCrouching)
+            currentSpeed = crouchSpeed;
+        else if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint)
             currentSpeed = sprintSpeed;
 
         if (controller.isGrounded)
@@ -175,7 +195,6 @@ public class PlayerStats : MonoBehaviour
 
         if (move.sqrMagnitude > 0.01f)
         {
-            // Rotate to face movement direction (camera-relative)
             Quaternion targetRotation = Quaternion.LookRotation(move);
             targetRotation = Quaternion.Euler(0f, targetRotation.eulerAngles.y, 0f);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
@@ -184,39 +203,10 @@ public class PlayerStats : MonoBehaviour
         move = move.normalized * currentSpeed;
         move.y = verticalVelocity;
 
-        // Move forward in that direction
         controller.Move(move * Time.deltaTime);
     }
 
-    private void HandleCrouch()
-    {
-        if (crouchAction.WasPressedThisFrame())
-        {
-            isCrouching = !isCrouching;
-
-            // Adjust height and camera position
-            controller.height = isCrouching ? crouchHeight : originalHeight;
-
-            Vector3 camPos = playerCamera.localPosition;
-            camPos.y = isCrouching ? crouchHeight * 0.75f : originalHeight * 0.9f;
-            playerCamera.localPosition = camPos;
-        }
-    }
-
-    private void RotatePlayer(Vector3 move)
-    {
-        if (move.sqrMagnitude < 0.01f) return;
-
-        move.y = 0f;
-        Quaternion targetRotation = Quaternion.LookRotation(move);
-        targetRotation = Quaternion.Euler(0f, targetRotation.eulerAngles.y, 0f);
-        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
-    }
-
-
-
-    // --------------------------- Stamina utilities
-
+    // --------------------------- Stamina utilities ---------------------------
     public void UseStamina(float amount)
     {
         stamina -= amount;
@@ -234,6 +224,7 @@ public class PlayerStats : MonoBehaviour
         regenPaused = pause;
     }
 }
+
 
 
 
