@@ -7,6 +7,10 @@ public class EnemyAI : MonoBehaviour
 {
     public enum EnemyState { Normal, Chase, Damage, Dead }
 
+    public event System.Action OnEnemyDied;
+    public event System.Action OnEnemyRespawned;
+
+
     [Header("References")]
     public Transform player;
     public EnemySO enemyData; // 🔹 ScriptableObject reference
@@ -113,12 +117,32 @@ public class EnemyAI : MonoBehaviour
         float distance = toPlayer.magnitude;
         if (distance > viewDistance) return false;
 
-        toPlayer.y = 0f;
-        Vector3 forward = transform.forward;
-        float angleToPlayer = Vector3.Angle(forward, toPlayer);
+        // Ignore vertical difference for angle
+        Vector3 direction = toPlayer.normalized;
+        direction.y = 0f;
 
-        return angleToPlayer <= viewAngle;
+        float angleToPlayer = Vector3.Angle(transform.forward, direction);
+        if (angleToPlayer > viewAngle) return false;
+
+        // 🔹 Now check for obstacles using Raycast
+        Ray ray = new Ray(transform.position + Vector3.up * 1.5f, (player.position - (transform.position + Vector3.up * 1.5f)).normalized);
+        RaycastHit hit;
+
+        if (Physics.Raycast(ray, out hit, viewDistance))
+        {
+            // Debug visualization (optional)
+            Debug.DrawLine(ray.origin, hit.point, Color.red);
+
+            // If what we hit is the player, there’s a clear line of sight
+            if (hit.transform == player)
+                return true;
+            else
+                return false; // Something’s blocking the view
+        }
+
+        return false;
     }
+
 
     private void ChasePlayer()
     {
@@ -166,6 +190,11 @@ public class EnemyAI : MonoBehaviour
         {
             // Disable draining from this enemy when it dies
             playerStats.PauseRecovery(false);
+
+            OnEnemyDied?.Invoke();
+
+            gameObject.SetActive(false);
+
         }
 
         // Stop movement and disable the controller
@@ -240,6 +269,9 @@ public class EnemyAI : MonoBehaviour
 
         Debug.Log($"{gameObject.name} ResetEnemy: pos={respawnPosition}, health={currentHealth}");
 
+        OnEnemyRespawned?.Invoke();
+
+
     }
 
 
@@ -287,7 +319,12 @@ public class EnemyAI : MonoBehaviour
         Gizmos.DrawLine(transform.position, transform.position + rightRot * forward);
     }
 
-   
+    public string CurrentStateName()
+    {
+        return currentState.ToString();
+    }
+
+
 
 }
 
