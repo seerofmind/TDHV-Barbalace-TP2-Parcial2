@@ -33,6 +33,9 @@ public class PlayerStats : MonoBehaviour
     private bool regenPaused = false;
     private bool canSprint = true;
 
+    private float gravity = -9.81f;
+    private float verticalVelocity;
+
     void Awake()
     {
         controller = GetComponent<CharacterController>();
@@ -86,7 +89,7 @@ public class PlayerStats : MonoBehaviour
             isSprinting = true;
         }
 
-        
+
 
         // Apply drain
         if (totalDrain > 0f)
@@ -131,36 +134,49 @@ public class PlayerStats : MonoBehaviour
     }
 
     private void HandleMovement()
-{
-    Vector2 input = moveAction.ReadValue<Vector2>();
-
-    // Direction relative to camera
-    Vector3 camForward = playerCamera.forward;
-    Vector3 camRight = playerCamera.right;
-
-    camForward.y = 0f;
-    camRight.y = 0f;
-    camForward.Normalize();
-    camRight.Normalize();
-
-    Vector3 move = camRight * input.x + camForward * input.y;
-
-    float currentSpeed = walkSpeed;
-
-    if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint)
-        currentSpeed = sprintSpeed;
-
-    if (move.sqrMagnitude > 0.01f)
     {
-        // Rotate to face movement direction (camera-relative)
-        Quaternion targetRotation = Quaternion.LookRotation(move);
-        targetRotation = Quaternion.Euler(0f, targetRotation.eulerAngles.y, 0f);
-        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+        Vector2 input = moveAction.ReadValue<Vector2>();
+
+        // Direction relative to camera
+        Vector3 camForward = playerCamera.forward;
+        Vector3 camRight = playerCamera.right;
+
+        camForward.y = 0f;
+        camRight.y = 0f;
+        camForward.Normalize();
+        camRight.Normalize();
+
+        Vector3 move = camRight * input.x + camForward * input.y;
+
+        float currentSpeed = walkSpeed;
+
+        if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint)
+            currentSpeed = sprintSpeed;
+
+        if (controller.isGrounded)
+        {
+            if (verticalVelocity < 0f)
+                verticalVelocity = -2f;
+        }
+        else
+        {
+            verticalVelocity += gravity * Time.deltaTime;
+        }
+
+        if (move.sqrMagnitude > 0.01f)
+        {
+            // Rotate to face movement direction (camera-relative)
+            Quaternion targetRotation = Quaternion.LookRotation(move);
+            targetRotation = Quaternion.Euler(0f, targetRotation.eulerAngles.y, 0f);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+        }
+
+        move = move.normalized * currentSpeed;
+        move.y = verticalVelocity;
 
         // Move forward in that direction
-        controller.Move(move.normalized * currentSpeed * Time.deltaTime);
+        controller.Move(move * Time.deltaTime);
     }
-}
 
     private void RotatePlayer(Vector3 move)
     {
@@ -172,10 +188,10 @@ public class PlayerStats : MonoBehaviour
         transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
     }
 
-    
+
 
     // --------------------------- Stamina utilities
-    
+
     public void UseStamina(float amount)
     {
         stamina -= amount;
