@@ -14,7 +14,10 @@ public class PlayerStats : MonoBehaviour
     [SerializeField] private float maxStamina;
     [SerializeField] private float recoveryRate;
     [SerializeField] private float sprintDrainRate;
-
+    [SerializeField] private float crouchSpeed = 2.5f;
+    [SerializeField] private float crouchHeight = 1f;
+    private float originalHeight;
+    private bool isCrouching = false;
     [SerializeField] private float walkSpeed;
     [SerializeField] private float sprintSpeed;
     [SerializeField] private float rotationSpeed;
@@ -23,6 +26,7 @@ public class PlayerStats : MonoBehaviour
     public PlayerInput playerInput;
     private InputAction sprintAction;
     private InputAction moveAction;
+    private InputAction crouchAction;
 
     private CharacterController controller;
 
@@ -44,6 +48,9 @@ public class PlayerStats : MonoBehaviour
 
         sprintAction = playerInput.actions["Sprint"];
         moveAction = playerInput.actions["Move"];
+        crouchAction = playerInput.actions["Crouch"];
+        originalHeight = controller.height;
+
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -73,6 +80,8 @@ public class PlayerStats : MonoBehaviour
     {
         HandleStamina();
         HandleMovement();
+        HandleCrouch();
+
     }
 
     private void HandleStamina()
@@ -148,7 +157,8 @@ public class PlayerStats : MonoBehaviour
 
         Vector3 move = camRight * input.x + camForward * input.y;
 
-        float currentSpeed = walkSpeed;
+        float currentSpeed = isCrouching ? crouchSpeed : walkSpeed;
+
 
         if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint)
             currentSpeed = sprintSpeed;
@@ -176,6 +186,21 @@ public class PlayerStats : MonoBehaviour
 
         // Move forward in that direction
         controller.Move(move * Time.deltaTime);
+    }
+
+    private void HandleCrouch()
+    {
+        if (crouchAction.WasPressedThisFrame())
+        {
+            isCrouching = !isCrouching;
+
+            // Adjust height and camera position
+            controller.height = isCrouching ? crouchHeight : originalHeight;
+
+            Vector3 camPos = playerCamera.localPosition;
+            camPos.y = isCrouching ? crouchHeight * 0.75f : originalHeight * 0.9f;
+            playerCamera.localPosition = camPos;
+        }
     }
 
     private void RotatePlayer(Vector3 move)
