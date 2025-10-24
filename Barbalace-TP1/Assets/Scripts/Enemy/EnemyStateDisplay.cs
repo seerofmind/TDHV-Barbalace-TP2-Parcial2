@@ -6,7 +6,7 @@ public class EnemyStateDisplay : MonoBehaviour
 {
     [Header("References")]
     public EnemyAI enemy;
-    public TextMeshProUGUI textMesh; // Canvas-based TMP
+    public TextMeshPro textMesh; 
     public Vector3 offset = new Vector3(0, 2f, 0);
 
     [Header("Fade Settings")]
