@@ -99,32 +99,32 @@ public class PlayerStats : MonoBehaviour
 
     void Update()
     {
-        // If health is 0 or controller is disabled, skip movement & stamina
-        if (health <= 0 || controller == null || !controller.enabled)
-            return;
-
-        HandleCrouchInput();
-        HandleStamina();
-        HandleMovement();
-
-        // 💀 Death check
-        if (health <= 0 && gameObject.activeSelf)
-        {
-            Die();
-        }
-
-        // 🔄 Respawn with F1
+        // Always listen for F1/F2
         if (Keyboard.current.f1Key.wasPressedThisFrame)
         {
             Respawn();
         }
-
-        // 🔁 Restart scene with F2
         if (Keyboard.current.f2Key.wasPressedThisFrame)
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
+
+        // Skip gameplay logic if dead
+        if (health <= 0 || controller == null || !controller.enabled)
+            return;
+
+        // Normal gameplay logic
+        HandleCrouchInput();
+        HandleStamina();
+        HandleMovement();
+
+        // Death check
+        if (health <= 0)
+        {
+            Die();
+        }
     }
+
 
 
     // ------------------------------- Crouch -------------------------------
