@@ -10495,7 +10495,7 @@ Transform:
   m_GameObject: {fileID: 775213626}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.7579938, z: -0, w: 0.65226173}
-  m_LocalPosition: {x: -4.1137767, y: 1, z: 0.7702549}
+  m_LocalPosition: {x: -24.81, y: 8.89, z: 60.26}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -10619,12 +10619,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   player: {fileID: 868653660}
   enemyData: {fileID: 11400000, guid: e50f7753e78b0e641954a48305f26e9b, type: 2}
-  maxHealth: 100
-  moveSpeed: 5
-  viewDistance: 10
-  viewAngle: 45
-  drainDistance: 5
-  drainRate: 1
   currentState: 0
   damageStateDuration: 1
   respawnManager: {fileID: 2088865711}
@@ -12998,18 +12992,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerData: {fileID: 11400000, guid: 7050c1e32470f024dbb46497198cb424, type: 2}
   playerCamera: {fileID: 1643465622}
-  health: 100
-  stamina: 10
-  maxStamina: 10
-  recoveryRate: 1
-  sprintDrainRate: 2
-  walkSpeed: 5
-  sprintSpeed: 12
-  rotationSpeed: 10
-  crouchSpeed: 2.5
-  crouchHeight: 1
   playerInput: {fileID: 868653661}
-  staminaState: 0
 --- !u!1 &868965118
 GameObject:
   m_ObjectHideFlags: 0
