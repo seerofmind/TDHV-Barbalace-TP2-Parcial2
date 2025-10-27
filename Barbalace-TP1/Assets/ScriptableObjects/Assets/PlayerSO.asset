@@ -19,3 +19,5 @@ MonoBehaviour:
   walkSpeed: 5
   sprintSpeed: 12
   rotationSpeed: 10
+  crouchSpeed: 2
+  crouchHeight: 1

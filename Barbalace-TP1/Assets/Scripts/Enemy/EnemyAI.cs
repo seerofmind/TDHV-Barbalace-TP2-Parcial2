@@ -10,6 +10,13 @@ public class EnemyAI : MonoBehaviour
     public event System.Action OnEnemyDied;
     public event System.Action OnEnemyRespawned;
 
+    
+    private int currentHealth;
+    private float moveSpeed;
+    private float viewDistance;
+    private float viewAngle;
+    private float drainDistance;
+    private float drainRate;
 
     [Header("References")]
     public Transform player;
@@ -17,14 +24,8 @@ public class EnemyAI : MonoBehaviour
     private CharacterController controller;
     private PlayerStats playerStats;
 
-    [Header("Runtime Stats")]
-    [SerializeField] public int maxHealth;
-    private int currentHealth;
-    [SerializeField] private float moveSpeed;
-    [SerializeField] private float viewDistance;
-    [SerializeField] private float viewAngle;
-    [SerializeField] private float drainDistance;
-    [SerializeField] private float drainRate;
+
+   
 
     [Header("Runtime Info (Debug)")]
     [SerializeField] private EnemyState currentState = EnemyState.Normal;

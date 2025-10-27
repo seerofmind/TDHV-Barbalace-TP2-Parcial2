@@ -36,7 +36,8 @@ public class EnemyRespawnManager : MonoBehaviour
         if (enemyInScene == null) return;
         originalPosition = enemyInScene.transform.position;
         originalRotation = enemyInScene.transform.rotation;
-        originalHealth = enemyInScene.maxHealth;
+        originalHealth = enemyInScene.enemyData.maxHealth;
+
         hasSavedOriginalConfig = true;
         Debug.Log($"Saved enemy original config: pos={originalPosition}, health={originalHealth}");
     }

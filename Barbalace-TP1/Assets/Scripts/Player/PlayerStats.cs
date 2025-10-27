@@ -5,26 +5,28 @@ using UnityEngine.InputSystem;
 public class PlayerStats : MonoBehaviour
 {
     [Header("References")]
-    public PlayerSO playerData;
+    public Soldier playerData;
     public Transform playerCamera;
 
     [Header("Runtime Values")]
-    [SerializeField] private int health;
-    [SerializeField] private float stamina;
-    [SerializeField] private float maxStamina;
-    [SerializeField] private float recoveryRate;
-    [SerializeField] private float sprintDrainRate;
+     private int health;
+     private float stamina;
+     private float maxStamina;
+     private float recoveryRate;
+    private float sprintDrainRate;
     public int CurrentHealth => health;
 
-    [SerializeField] private float walkSpeed;
-    [SerializeField] private float sprintSpeed;
-    [SerializeField] private float rotationSpeed;
+    private float walkSpeed;
+     private float sprintSpeed;
+     private float rotationSpeed;
 
     [Header("Crouch Settings")]
-    public float crouchSpeed = 2f;
-    public float crouchHeight = 1f;
+     private float crouchHeight;
+    private float crouchSpeed;
+
     private float originalHeight;
     private bool isCrouching = false;
+
 
     [Header("Input")]
     public PlayerInput playerInput;
@@ -34,7 +36,7 @@ public class PlayerStats : MonoBehaviour
     private CharacterController controller;
 
     public enum StaminaState { Idle, Draining, Recovering }
-    [SerializeField] private StaminaState staminaState = StaminaState.Idle;
+     private StaminaState staminaState = StaminaState.Idle;
 
     private StaminaState lastStaminaState = StaminaState.Idle;
     private bool regenPaused = false;
@@ -69,6 +71,9 @@ public class PlayerStats : MonoBehaviour
             walkSpeed = playerData.walkSpeed;
             sprintSpeed = playerData.sprintSpeed;
             rotationSpeed = playerData.rotationSpeed;
+            crouchHeight = playerData.crouchHeight;
+            crouchSpeed = playerData.crouchSpeed;
+
         }
         else
         {
