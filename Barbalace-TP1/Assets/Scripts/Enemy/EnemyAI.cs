@@ -1,6 +1,5 @@
 ﻿using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(CharacterController))]
 public class EnemyAI : MonoBehaviour
@@ -9,38 +8,52 @@ public class EnemyAI : MonoBehaviour
 
     public event System.Action OnEnemyDied;
     public event System.Action OnEnemyRespawned;
-
-    
-    private int currentHealth;
-    private float moveSpeed;
-    private float viewDistance;
-    private float viewAngle;
-    private float drainDistance;
-    private float drainRate;
+    public event System.Action OnPlayerDied;
 
     [Header("References")]
     public Transform player;
-    public EnemySO enemyData; // 🔹 ScriptableObject reference
+    public Soldier enemyData;
     private CharacterController controller;
     private PlayerStats playerStats;
 
+    private NavMeshAgent agent;
+    private EnemyWeapon weapon;
 
-   
+    public bool IsDead => currentState == EnemyState.Dead;
+    private float gravity = -9.81f;
+    private float verticalVelocity;
 
-    [Header("Runtime Info (Debug)")]
+
+    [Header("Combat Settings")]
+    public int attackDamage = 20;          // fallback damage if weapon fails
+    public float attackRange = 2f;         // fallback range if weapon fails
+    public float attackCooldown = 1.5f;
+    private float lastAttackTime;
+
+    [Header("Movement & Vision")]
+    private float moveSpeed;
+    private float normalSpeed = 2f;
+    private float chaseSpeed = 3.5f;
+    private float currentSpeed;
+
+    private float viewDistance;
+    private float viewAngle;
+    private float drainRate;
+
+    private bool wasShotByPlayer = false;
+    private float chaseTimer = 0f;
+    public float chaseDurationAfterShot = 5f;
+
+    [Header("Runtime Info")]
     [SerializeField] private EnemyState currentState = EnemyState.Normal;
+    private int currentHealth;
+
+    private float damageStateTimer = 0f;
+    public float damageStateDuration = 0.5f;
 
     private Vector3 initialPosition;
     private Quaternion initialRotation;
-
-    // Damage handling
-    private float damageStateTimer = 0f;
-    public float damageStateDuration = 0.5f; // stun time
-
     private bool isDead = false;
-    private bool drainEnabled = true;
-
-    public EnemyRespawnManager respawnManager;
 
     void Awake()
     {
@@ -48,117 +61,141 @@ public class EnemyAI : MonoBehaviour
         initialPosition = transform.position;
         initialRotation = transform.rotation;
 
-        // 🔹 Load values from ScriptableObject
         if (enemyData != null)
         {
             currentHealth = enemyData.maxHealth;
             moveSpeed = enemyData.moveSpeed;
             viewDistance = enemyData.viewDistance;
             viewAngle = enemyData.viewAngle;
-            drainDistance = enemyData.drainDistance;
             drainRate = enemyData.drainRate;
         }
-        else
-        {
-            Debug.LogWarning($"[EnemyAI] No EnemyData assigned to {gameObject.name}!");
-        }
 
-        // Find player
         if (!player)
             player = FindFirstObjectByType<PlayerStats>()?.transform;
 
         if (player)
             playerStats = player.GetComponent<PlayerStats>();
+    }
 
-        Debug.Log("Enemy state: " + currentState);
+    void Start()
+    {
+        agent = GetComponent<NavMeshAgent>();
+        currentSpeed = normalSpeed;
+
+        weapon = GetComponentInChildren<EnemyWeapon>();
+        if (weapon == null)
+            Debug.LogWarning($"{gameObject.name} has no EnemyWeapon assigned!");
     }
 
     void Update()
     {
         if (currentState == EnemyState.Dead || !player) return;
 
-        if (currentState == EnemyState.Damage)
+        HandleDamageState();
+
+        bool canSeePlayer = PlayerInConeOfVision();
+
+        // Start chasing if player seen or recently shot
+        if (canSeePlayer || wasShotByPlayer)
         {
-            damageStateTimer -= Time.deltaTime;
-            if (damageStateTimer <= 0f)
-            {
-                if (PlayerInConeOfVision())
-                    SetState(EnemyState.Chase);
-                else
-                    SetState(EnemyState.Normal);
-            }
-            return;
+            ForceChase();
         }
 
-        if (PlayerInConeOfVision())
+        // Movement & attack logic
+        switch (currentState)
         {
-            SetState(EnemyState.Chase);
-            ChasePlayer();
+            case EnemyState.Normal:
+                Patrol();
+                break;
 
-            if (playerStats != null)
-            {
-                // 🔹 Use the drain rate from the SO
-                playerStats.ModifyStamina(-drainRate * Time.deltaTime);
-                playerStats.PauseRecovery(true);
-            }
+            case EnemyState.Chase:
+                ChasePlayer();
+                break;
         }
-        else
-        {
-            SetState(EnemyState.Normal);
-            controller.Move(Vector3.zero);
 
-            if (playerStats != null)
-                playerStats.PauseRecovery(false);
+
+    }
+
+    private void HandleDamageState()
+    {
+        if (currentState != EnemyState.Damage) return;
+
+        damageStateTimer -= Time.deltaTime;
+        if (damageStateTimer <= 0f)
+        {
+            SetState(PlayerInConeOfVision() ? EnemyState.Chase : EnemyState.Normal);
         }
     }
 
     private bool PlayerInConeOfVision()
     {
+        if (!player) return false;
+
         Vector3 toPlayer = player.position - transform.position;
-        float distance = toPlayer.magnitude;
-        if (distance > viewDistance) return false;
+        if (toPlayer.magnitude > viewDistance) return false;
 
-        // Ignore vertical difference for angle
-        Vector3 direction = toPlayer.normalized;
-        direction.y = 0f;
+        Vector3 dir = toPlayer.normalized;
+        dir.y = 0f;
 
-        float angleToPlayer = Vector3.Angle(transform.forward, direction);
-        if (angleToPlayer > viewAngle) return false;
+        if (Vector3.Angle(transform.forward, dir) > viewAngle) return false;
 
-        // 🔹 Now check for obstacles using Raycast
         Ray ray = new Ray(transform.position + Vector3.up * 1.5f, (player.position - (transform.position + Vector3.up * 1.5f)).normalized);
-        RaycastHit hit;
-
-        if (Physics.Raycast(ray, out hit, viewDistance))
+        if (Physics.Raycast(ray, out RaycastHit hit, viewDistance))
         {
-            // Debug visualization (optional)
-            Debug.DrawLine(ray.origin, hit.point, Color.red);
-
-            // If what we hit is the player, there’s a clear line of sight
-            if (hit.transform == player)
-                return true;
-            else
-                return false; // Something’s blocking the view
+            return hit.transform == player;
         }
 
         return false;
     }
 
+    void Patrol()
+    {
+        // Optional patrol logic
+    }
 
     private void ChasePlayer()
     {
-        if (currentState != EnemyState.Chase) return;
+        if (player == null) return;
 
+        PlayerStats playerStats = player.GetComponent<PlayerStats>();
+        if (playerStats == null || playerStats.CurrentHealth <= 0)
+            return; // Player is dead, do nothing
+
+        // Movement
         Vector3 direction = (player.position - transform.position).normalized;
         direction.y = 0f;
-
         controller.Move(direction * moveSpeed * Time.deltaTime);
 
+        // Rotation
         if (direction.sqrMagnitude > 0.01f)
         {
             Quaternion targetRotation = Quaternion.LookRotation(direction);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 5f * Time.deltaTime);
         }
+
+        // Drain stamina
+        playerStats?.ModifyStamina(-drainRate * Time.deltaTime);
+        playerStats?.PauseRecovery(true);
+
+        // Attack if in range
+        float distance = Vector3.Distance(transform.position, player.position);
+        if (weapon != null && distance <= weapon.attackRange)
+        {
+            weapon.TryAttack(playerStats);
+        }
+        else if (distance <= attackRange)
+        {
+            TryAttackPlayer();
+        }
+    }
+
+    private void TryAttackPlayer()
+    {
+        if (Time.time < lastAttackTime + attackCooldown || playerStats == null) return;
+
+        playerStats.TakeDamage(attackDamage);
+        lastAttackTime = Time.time;
+        Debug.Log($"{gameObject.name} attacked player for {attackDamage} damage!");
     }
 
     public void TakeDamage(int amount)
@@ -167,13 +204,15 @@ public class EnemyAI : MonoBehaviour
 
         currentHealth -= amount;
         currentHealth = Mathf.Max(0, currentHealth);
-        Debug.Log(gameObject.name + " took " + amount + " damage. Health: " + currentHealth);
+        Debug.Log($"{gameObject.name} took {amount} damage. Health: {currentHealth}");
 
         if (currentHealth > 0)
         {
-            SetState(EnemyState.Damage);
+            SetState(EnemyState.Chase);
             damageStateTimer = damageStateDuration;
             controller.Move(Vector3.zero);
+            wasShotByPlayer = true;
+            chaseTimer = chaseDurationAfterShot;
         }
         else
         {
@@ -184,140 +223,61 @@ public class EnemyAI : MonoBehaviour
     private void Die()
     {
         SetState(EnemyState.Dead);
-        Debug.Log(gameObject.name + " died!");
+        Debug.Log($"{gameObject.name} died!");
+        playerStats?.PauseRecovery(false);
 
-        var playerStats = FindFirstObjectByType<PlayerStats>();
-        if (playerStats != null)
-        {
-            // Disable draining from this enemy when it dies
-            playerStats.PauseRecovery(false);
-
-            OnEnemyDied?.Invoke();
-
-            gameObject.SetActive(false);
-
-        }
-
-        // Stop movement and disable the controller
-
-
-        // Notify the respawn manager (singleton)
-        if (EnemyRespawnManager.Instance != null)
-            EnemyRespawnManager.Instance.NotifyEnemyDeath(this);
-
-        // Optional: visually hide enemy instead of destroying
+        OnEnemyDied?.Invoke();
         gameObject.SetActive(false);
+
+        if (agent != null) agent.isStopped = true;
+
+        Debug.Log("Player died!");
+        gameObject.SetActive(false);
+        if (controller != null) controller.enabled = false;
+
+        OnPlayerDied?.Invoke(); // Notify enemies or other systems
     }
 
-
-    /// <summary>
-    /// Robust respawn/reset method compatible with EnemyRespawnManager.
-    /// Restores transform, health, state and re-enables movement components (NavMeshAgent or CharacterController).
-    /// </summary>
     public void ResetEnemy(int healthToSet, Vector3 respawnPosition, Quaternion respawnRotation)
     {
-        // Ensure the object is active (manager may call this after re-activating, but safe to do here)
         if (!gameObject.activeSelf)
             gameObject.SetActive(true);
 
-        // Stop any damage stun
         damageStateTimer = 0f;
 
-        // Restore transform safely depending on movement component
-        NavMeshAgent agent = GetComponent<NavMeshAgent>();
-
-        if (agent != null)
+        if (controller != null)
         {
-            // Ensure agent enabled, warp to position, and clear path
-            agent.enabled = true;
-            agent.Warp(respawnPosition);
-            agent.ResetPath();
-            transform.rotation = respawnRotation;
-        }
-        else if (controller != null)
-        {
-            // CharacterController: disable while teleporting to avoid collisions/movement interference
-            bool wasEnabled = controller.enabled;
-            if (wasEnabled) controller.enabled = false;
+            controller.enabled = false;
             transform.position = respawnPosition;
             transform.rotation = respawnRotation;
-            if (wasEnabled) controller.enabled = true;
-        }
-        else
-        {
-            // fallback if neither component is present
-            transform.position = respawnPosition;
-            transform.rotation = respawnRotation;
+            controller.enabled = true;
         }
 
-        // Reset health & state
         currentHealth = healthToSet;
         SetState(EnemyState.Normal);
-
-        // Re-enable any colliders or other components you may have disabled on death
-        Collider col = GetComponent<Collider>();
-        if (col != null) col.enabled = true;
-
-
-
-        // Restore player's reference to this enemy (so proximity-stamina works again)
-        // Reset the enemy’s own state on respawn
-        controller.enabled = true;
         isDead = false;
-
-        // Make sure drain logic is re-enabled (enemy handles its own stamina drain checks now)
-        drainEnabled = true; 
-
-        Debug.Log($"{gameObject.name} ResetEnemy: pos={respawnPosition}, health={currentHealth}");
+       
 
         OnEnemyRespawned?.Invoke();
-
-
     }
-
-
 
     private void SetState(EnemyState newState)
     {
         if (currentState != newState)
         {
             currentState = newState;
-            Debug.Log("Enemy state: " + currentState);
+            Debug.Log($"Enemy state: {currentState}");
         }
     }
 
-    // --------------------------- Enemy management
-    public void ClearEnemyReference(Transform enemyTransform)
+    public void ForceChase()
     {
-        if (enemyData == enemyTransform)
-            enemyData = null;
-    }
+        if (currentState == EnemyState.Dead) return;
 
-    [SerializeField] private Transform enemy; // already exists
-    public void SetEnemyReference(Transform enemyTransform)
-    {
-        enemy = enemyTransform;
-    }
-
-
-
-
-
-
-
-    // Optional: Draw cone in Scene view
-    private void OnDrawGizmosSelected()
-    {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, viewDistance);
-
-        Vector3 forward = transform.forward * viewDistance;
-        Quaternion leftRot = Quaternion.Euler(0, -viewAngle, 0);
-        Quaternion rightRot = Quaternion.Euler(0, viewAngle, 0);
-
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(transform.position, transform.position + leftRot * forward);
-        Gizmos.DrawLine(transform.position, transform.position + rightRot * forward);
+        SetState(EnemyState.Chase);
+        wasShotByPlayer = true;
+        chaseTimer = chaseDurationAfterShot;
+        //Debug.Log($"{gameObject.name} is now chasing the player!");
     }
 
     public string CurrentStateName()
@@ -325,9 +285,8 @@ public class EnemyAI : MonoBehaviour
         return currentState.ToString();
     }
 
-
-
 }
+
 
 
 

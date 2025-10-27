@@ -1,32 +1,34 @@
-﻿using UnityEngine;
-using UnityEngine.InputSystem;
+﻿using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerStats : MonoBehaviour
 {
     [Header("References")]
-    public Soldier playerData;
+    public PlayerData playerData;
     public Transform playerCamera;
 
+    [Header("Respawn Settings")]
+    public Transform initialPosition; // Optional spawn point in Inspector
+
     [Header("Runtime Values")]
-     private int health;
-     private float stamina;
-     private float maxStamina;
-     private float recoveryRate;
+    private int health;
+    private float stamina;
+    private float maxStamina;
+    public float maxHealth;
+    private float recoveryRate;
     private float sprintDrainRate;
-    public int CurrentHealth => health;
-
     private float walkSpeed;
-     private float sprintSpeed;
-     private float rotationSpeed;
-
-    [Header("Crouch Settings")]
-     private float crouchHeight;
+    private float sprintSpeed;
+    private float rotationSpeed;
+    private float crouchHeight;
     private float crouchSpeed;
-
     private float originalHeight;
     private bool isCrouching = false;
-
+    private bool isDead = false;
+    public int CurrentHealth => health;
+    public float CurrentStamina => stamina;
 
     [Header("Input")]
     public PlayerInput playerInput;
@@ -36,14 +38,17 @@ public class PlayerStats : MonoBehaviour
     private CharacterController controller;
 
     public enum StaminaState { Idle, Draining, Recovering }
-     private StaminaState staminaState = StaminaState.Idle;
-
+    private StaminaState staminaState = StaminaState.Idle;
     private StaminaState lastStaminaState = StaminaState.Idle;
     private bool regenPaused = false;
     private bool canSprint = true;
 
     private float gravity = -9.81f;
     private float verticalVelocity;
+
+    // 🔹 Respawn data
+    private Vector3 spawnPosition;
+    private Quaternion spawnRotation;
 
     void Awake()
     {
@@ -57,9 +62,9 @@ public class PlayerStats : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        originalHeight = controller.height; // store the normal height
+        originalHeight = controller.height;
 
-        // 🔹 Load values from ScriptableObject
+        // Load ScriptableObject values
         if (playerData != null)
         {
             health = playerData.health;
@@ -73,22 +78,56 @@ public class PlayerStats : MonoBehaviour
             rotationSpeed = playerData.rotationSpeed;
             crouchHeight = playerData.crouchHeight;
             crouchSpeed = playerData.crouchSpeed;
-
         }
         else
         {
             Debug.LogWarning("[PlayerStats] No PlayerData assigned!");
         }
+
+        // Store spawn position/rotation
+        if (initialPosition != null)
+        {
+            spawnPosition = initialPosition.position;
+            spawnRotation = initialPosition.rotation;
+        }
+        else
+        {
+            spawnPosition = transform.position;
+            spawnRotation = transform.rotation;
+        }
     }
 
     void Update()
     {
+        // If health is 0 or controller is disabled, skip movement & stamina
+        if (health <= 0 || controller == null || !controller.enabled)
+            return;
+
         HandleCrouchInput();
         HandleStamina();
         HandleMovement();
+
+        // 💀 Death check
+        if (health <= 0 && gameObject.activeSelf)
+        {
+            Die();
+        }
+
+        // 🔄 Respawn with F1
+        if (Keyboard.current.f1Key.wasPressedThisFrame)
+        {
+            Respawn();
+        }
+
+        // 🔁 Restart scene with F2
+        if (Keyboard.current.f2Key.wasPressedThisFrame)
+        {
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
     }
 
-    // -------------------------------- Crouch --------------------------------
+
+    // ------------------------------- Crouch -------------------------------
     private void HandleCrouchInput()
     {
         bool crouchPressed = Keyboard.current.cKey.wasPressedThisFrame ||
@@ -96,20 +135,12 @@ public class PlayerStats : MonoBehaviour
 
         if (crouchPressed)
         {
-            isCrouching = !isCrouching; // toggle crouch
-
-            if (isCrouching)
-            {
-                controller.height = crouchHeight;
-            }
-            else
-            {
-                controller.height = originalHeight;
-            }
+            isCrouching = !isCrouching;
+            controller.height = isCrouching ? crouchHeight : originalHeight;
         }
     }
 
-    // -------------------------------- Stamina --------------------------------
+    // ------------------------------- Stamina -------------------------------
     private void HandleStamina()
     {
         float delta = Time.deltaTime;
@@ -117,14 +148,12 @@ public class PlayerStats : MonoBehaviour
         bool isNearEnemy = false;
         bool isSprinting = false;
 
-        // Sprint drain
         if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint && !isCrouching)
         {
             totalDrain += sprintDrainRate;
             isSprinting = true;
         }
 
-        // Apply drain
         if (totalDrain > 0f)
         {
             stamina -= totalDrain * delta;
@@ -138,12 +167,10 @@ public class PlayerStats : MonoBehaviour
         }
         else
         {
-            // Recover if not paused, not near enemy, not sprinting
             if (!regenPaused && !isNearEnemy && !isSprinting && stamina < maxStamina)
             {
                 stamina += recoveryRate * delta;
                 if (stamina > maxStamina) stamina = maxStamina;
-
                 if (stamina > 1f) canSprint = true;
 
                 staminaState = StaminaState.Recovering;
@@ -161,12 +188,24 @@ public class PlayerStats : MonoBehaviour
     {
         if (newState != lastStaminaState)
         {
-            Debug.Log($"[Stamina] State: {newState}, Value: {Mathf.RoundToInt(value)}");
+            // Optional debug
+            // Debug.Log($"[Stamina] State: {newState}, Value: {Mathf.RoundToInt(value)}");
             lastStaminaState = newState;
         }
     }
 
-    // -------------------------------- Movement --------------------------------
+    public void ModifyStamina(float amount)
+    {
+        stamina = Mathf.Clamp(stamina + amount, 0f, maxStamina);
+        if (stamina > 1f) canSprint = true;
+    }
+
+    public void PauseRecovery(bool pause)
+    {
+        regenPaused = pause;
+    }
+
+    // ------------------------------- Movement -------------------------------
     private void HandleMovement()
     {
         Vector2 input = moveAction.ReadValue<Vector2>();
@@ -211,24 +250,64 @@ public class PlayerStats : MonoBehaviour
         controller.Move(move * Time.deltaTime);
     }
 
-    // --------------------------- Stamina utilities ---------------------------
-    public void UseStamina(float amount)
+    // ------------------------------- Damage & Respawn -------------------------------
+    public void TakeDamage(int amount)
     {
-        stamina -= amount;
-        stamina = Mathf.Max(stamina, 0);
-        Debug.Log("Stamina used: " + Mathf.RoundToInt(stamina));
+        health -= amount;
+        if (health <= 0 && gameObject.activeSelf)
+        {
+            health = 0;
+            Die();
+        }
+        else
+        {
+            Debug.Log($"Player took {amount} damage. Remaining HP: {health}");
+        }
     }
 
-    public void ModifyStamina(float amount)
+    private void Die()
     {
-        stamina = Mathf.Clamp(stamina + amount, 0f, maxStamina);
+        if (isDead) return;
+        isDead = true;
+
+        Debug.Log("Player died!");
+
+        // Disable movement
+        if (controller != null)
+            controller.enabled = false;
+
+        // Optional: visually hide player (like mesh or renderer)
+        foreach (var renderer in GetComponentsInChildren<Renderer>())
+            renderer.enabled = false;
     }
 
-    public void PauseRecovery(bool pause)
+    private void Respawn()
     {
-        regenPaused = pause;
+        Debug.Log("Respawning player...");
+
+        // Enable movement
+        if (controller != null)
+            controller.enabled = true;
+
+        // Reset visuals
+        foreach (var renderer in GetComponentsInChildren<Renderer>())
+            renderer.enabled = true;
+
+        // Reset position & rotation
+        transform.position = spawnPosition;
+        transform.rotation = spawnRotation;
+
+        // Reset health & stamina
+        health = playerData != null ? Mathf.RoundToInt(playerData.health) : (int)maxHealth;
+
+        stamina = playerData != null ? playerData.maxStamina : maxStamina;
+
+        isDead = false;
     }
 }
+
+
+
 
 
 

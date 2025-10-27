@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "PlayerSO", menuName = "Scriptable Objects/PlayerSO")]
-public class Soldier : ScriptableObject
+public class PlayerData : ScriptableObject
 {
     [Header("Health Settings")]
     public int health = 100;

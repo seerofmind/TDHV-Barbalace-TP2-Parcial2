@@ -51,7 +51,7 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "Respawn",
+                    "name": "RespawnEnemy",
                     "type": "Button",
                     "id": "663c7be5-9bae-4a48-a9c0-5b86d6b3ae17",
                     "expectedControlType": "",
@@ -72,6 +72,24 @@
                     "name": "Recharge",
                     "type": "Button",
                     "id": "cf92d733-11e5-49b2-ab36-89eb49f82fed",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "RespawnPlayer",
+                    "type": "Button",
+                    "id": "5ee571f7-c808-4476-a697-ff802ef2cefb",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "ReloadScene",
+                    "type": "Button",
+                    "id": "f4c2a2b3-0839-46d6-a24e-f46ae9df3654",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -240,7 +258,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "Respawn",
+                    "action": "RespawnEnemy",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },
@@ -274,6 +292,28 @@
                     "processors": "",
                     "groups": "",
                     "action": "Recharge",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "688f55c7-abb5-4033-8f35-9b43d0a5d9ec",
+                    "path": "<Keyboard>/f1",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "RespawnPlayer",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "452d1243-0755-4c98-b389-726a271cf149",
+                    "path": "<Keyboard>/f2",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "ReloadScene",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

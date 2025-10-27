@@ -12,7 +12,6 @@ public class PlayerUI : MonoBehaviour
 
     void Start()
     {
-        // Find the player and pistol in the scene
         playerStats = FindFirstObjectByType<PlayerStats>();
         pistol = FindFirstObjectByType<Pistol>();
 
@@ -25,29 +24,22 @@ public class PlayerUI : MonoBehaviour
     void Update()
     {
         if (playerStats != null)
-            hpText.text = $"HP: {playerStats.CurrentHealth}";
+            hpText.text = $"HP: {Mathf.CeilToInt(playerStats.CurrentHealth)} / {Mathf.CeilToInt(playerStats.maxHealth)}";
 
         if (pistol != null)
             ammoText.text = $"Ammo: {pistol.CurrentAmmo} / {pistol.MagazineSize}";
-    }
 
+       
+            if (playerStats != null && playerStats.gameObject.activeSelf)
+                hpText.text = $"HP: {playerStats.CurrentHealth}";
+            else
+                hpText.text = "HP: 0";
 
-    private int playerStatsHealth()
-    {
-        // If you want current health exposed directly, you can add a getter in PlayerStats
-        var field = typeof(PlayerStats).GetField("health", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return (int)field.GetValue(playerStats);
-    }
+            if (pistol != null && pistol.gameObject.activeSelf)
+                ammoText.text = $"Ammo: {pistol.CurrentAmmo} / {pistol.MagazineSize}";
+        
 
-    private int pistolAmmo()
-    {
-        var field = typeof(Pistol).GetField("currentAmmo", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return (int)field.GetValue(pistol);
-    }
-
-    private int pistolMagazine()
-    {
-        return pistol.magazineSize;
     }
 }
+
 

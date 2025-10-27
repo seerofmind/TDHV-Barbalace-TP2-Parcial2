@@ -27,6 +27,7 @@ public class Pistol : MonoBehaviour
     private InputAction attackAction;
     private InputAction rechargeAction;
 
+
     void Awake()
     {
         playerInput = GetComponentInParent<PlayerInput>();
@@ -58,6 +59,9 @@ public class Pistol : MonoBehaviour
             {
                 Debug.Log("No ammo! Press R to recharge.");
             }
+
+            
+
         }
 
         // 🔋 Handle recharging
@@ -84,7 +88,18 @@ public class Pistol : MonoBehaviour
 
             var enemy = hit.collider.GetComponentInParent<EnemyAI>();
             if (enemy != null)
+            {
+                // 🧠 Enemy takes damage
                 enemy.TakeDamage(damage);
+
+                // 🏃‍♂️ Force it to chase the player if not dead
+                if (!enemy.IsDead)
+                {
+                    enemy.TakeDamage(damage);
+                    enemy.ForceChase();
+                }
+
+            }
         }
         else
         {
@@ -94,6 +109,7 @@ public class Pistol : MonoBehaviour
 
         StartCoroutine(ShowTracer(firePoint.position, targetPoint));
     }
+
 
     void TryRecharge()
     {
