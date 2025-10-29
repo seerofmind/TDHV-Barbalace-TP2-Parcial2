@@ -15,15 +15,6 @@ public class PlayerStats : MonoBehaviour
     [Header("Runtime Values")]
     private int health;
     private float stamina;
-    private float maxStamina;
-    public float maxHealth;
-    private float recoveryRate;
-    private float sprintDrainRate;
-    private float walkSpeed;
-    private float sprintSpeed;
-    private float rotationSpeed;
-    private float crouchHeight;
-    private float crouchSpeed;
     private float originalHeight;
     private bool isCrouching = false;
     private bool isDead = false;
@@ -64,25 +55,10 @@ public class PlayerStats : MonoBehaviour
 
         originalHeight = controller.height;
 
-        // Load ScriptableObject values
-        if (playerData != null)
-        {
-            health = playerData.health;
-            stamina = playerData.maxStamina;
-            maxStamina = playerData.maxStamina;
-            recoveryRate = playerData.recoveryRate;
-            sprintDrainRate = playerData.sprintDrainRate;
+        health = playerData.maxHealth;
+        stamina = playerData.maxStamina;
 
-            walkSpeed = playerData.walkSpeed;
-            sprintSpeed = playerData.sprintSpeed;
-            rotationSpeed = playerData.rotationSpeed;
-            crouchHeight = playerData.crouchHeight;
-            crouchSpeed = playerData.crouchSpeed;
-        }
-        else
-        {
-            Debug.LogWarning("[PlayerStats] No PlayerData assigned!");
-        }
+  
 
         // Store spawn position/rotation
         if (initialPosition != null)
@@ -136,7 +112,7 @@ public class PlayerStats : MonoBehaviour
         if (crouchPressed)
         {
             isCrouching = !isCrouching;
-            controller.height = isCrouching ? crouchHeight : originalHeight;
+            controller.height = isCrouching ? playerData.crouchHeight : originalHeight;
         }
     }
 
@@ -150,7 +126,7 @@ public class PlayerStats : MonoBehaviour
 
         if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint && !isCrouching)
         {
-            totalDrain += sprintDrainRate;
+            totalDrain += playerData.sprintDrainRate;
             isSprinting = true;
         }
 
@@ -167,10 +143,10 @@ public class PlayerStats : MonoBehaviour
         }
         else
         {
-            if (!regenPaused && !isNearEnemy && !isSprinting && stamina < maxStamina)
+            if (!regenPaused && !isNearEnemy && !isSprinting && stamina < playerData.maxStamina)
             {
-                stamina += recoveryRate * delta;
-                if (stamina > maxStamina) stamina = maxStamina;
+                stamina += playerData.recoveryRate * delta;
+                if (stamina > playerData.maxStamina) stamina = playerData.maxStamina;
                 if (stamina > 1f) canSprint = true;
 
                 staminaState = StaminaState.Recovering;
@@ -196,7 +172,7 @@ public class PlayerStats : MonoBehaviour
 
     public void ModifyStamina(float amount)
     {
-        stamina = Mathf.Clamp(stamina + amount, 0f, maxStamina);
+        stamina = Mathf.Clamp(stamina + amount, 0f, playerData.maxStamina);
         if (stamina > 1f) canSprint = true;
     }
 
@@ -220,12 +196,12 @@ public class PlayerStats : MonoBehaviour
 
         Vector3 move = camRight * input.x + camForward * input.y;
 
-        float currentSpeed = walkSpeed;
+        float currentSpeed = playerData.walkSpeed;
 
         if (isCrouching)
-            currentSpeed = crouchSpeed;
+            currentSpeed = playerData.crouchSpeed;
         else if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint)
-            currentSpeed = sprintSpeed;
+            currentSpeed = playerData.sprintSpeed;
 
         if (controller.isGrounded)
         {
@@ -241,7 +217,7 @@ public class PlayerStats : MonoBehaviour
         {
             Quaternion targetRotation = Quaternion.LookRotation(move);
             targetRotation = Quaternion.Euler(0f, targetRotation.eulerAngles.y, 0f);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, playerData.rotationSpeed * Time.deltaTime);
         }
 
         move = move.normalized * currentSpeed;
@@ -263,6 +239,13 @@ public class PlayerStats : MonoBehaviour
         {
             Debug.Log($"Player took {amount} damage. Remaining HP: {health}");
         }
+    }
+
+    public int GetMaxHealth()
+    { 
+        // Retorno el maximo de vida. El metodo retorna un "int" 
+        return playerData.maxHealth;
+    
     }
 
     private void Die()
@@ -298,9 +281,9 @@ public class PlayerStats : MonoBehaviour
         transform.rotation = spawnRotation;
 
         // Reset health & stamina
-        health = playerData != null ? Mathf.RoundToInt(playerData.health) : (int)maxHealth;
+        health = playerData.maxHealth;
 
-        stamina = playerData != null ? playerData.maxStamina : maxStamina;
+        stamina = playerData.maxStamina;
 
         isDead = false;
     }

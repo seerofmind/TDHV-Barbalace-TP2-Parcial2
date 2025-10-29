@@ -24,7 +24,7 @@ public class PlayerUI : MonoBehaviour
     void Update()
     {
         if (playerStats != null)
-            hpText.text = $"HP: {Mathf.CeilToInt(playerStats.CurrentHealth)} / {Mathf.CeilToInt(playerStats.maxHealth)}";
+            hpText.text = $"HP: {Mathf.CeilToInt(playerStats.CurrentHealth)} / {Mathf.CeilToInt(playerStats.GetMaxHealth())}";
 
         if (pistol != null)
             ammoText.text = $"Ammo: {pistol.CurrentAmmo} / {pistol.MagazineSize}";

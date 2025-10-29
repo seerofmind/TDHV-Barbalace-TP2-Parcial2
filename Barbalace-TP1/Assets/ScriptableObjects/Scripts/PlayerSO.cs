@@ -4,7 +4,7 @@ using UnityEngine;
 public class PlayerData : ScriptableObject
 {
     [Header("Health Settings")]
-    public int health = 100;
+    public int maxHealth = 100;
 
     [Header("Stamina Settings")]
     public float maxStamina = 10f;
