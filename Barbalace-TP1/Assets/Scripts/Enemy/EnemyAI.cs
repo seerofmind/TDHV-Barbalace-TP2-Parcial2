@@ -24,20 +24,17 @@ public class EnemyAI : MonoBehaviour
     private float verticalVelocity;
 
 
-    [Header("Combat Settings")]
-    public int attackDamage = 20;          // fallback damage if weapon fails
-    public float attackRange = 2f;         // fallback range if weapon fails
-    public float attackCooldown = 1.5f;
+  
     private float lastAttackTime;
 
     [Header("Movement & Vision")]
     private float moveSpeed;
     private float normalSpeed = 2f;
-    private float chaseSpeed = 3.5f;
+  
     private float currentSpeed;
 
-    private float viewDistance;
-    private float viewAngle;
+   
+    
     private float drainRate;
 
     private bool wasShotByPlayer = false;
@@ -61,14 +58,11 @@ public class EnemyAI : MonoBehaviour
         initialPosition = transform.position;
         initialRotation = transform.rotation;
 
-        if (enemyData != null)
-        {
-            currentHealth = enemyData.maxHealth;
-            moveSpeed = enemyData.moveSpeed;
-            viewDistance = enemyData.viewDistance;
-            viewAngle = enemyData.viewAngle;
-            drainRate = enemyData.drainRate;
-        }
+        currentHealth = enemyData.maxHealth;
+        moveSpeed = enemyData.moveSpeed;
+        drainRate = enemyData.drainRate;
+
+       
 
         if (!player)
             player = FindFirstObjectByType<PlayerStats>()?.transform;
@@ -132,15 +126,15 @@ public class EnemyAI : MonoBehaviour
         if (!player) return false;
 
         Vector3 toPlayer = player.position - transform.position;
-        if (toPlayer.magnitude > viewDistance) return false;
+        if (toPlayer.magnitude > enemyData.viewDistance) return false;
 
         Vector3 dir = toPlayer.normalized;
         dir.y = 0f;
 
-        if (Vector3.Angle(transform.forward, dir) > viewAngle) return false;
+        if (Vector3.Angle(transform.forward, dir) > enemyData.viewAngle) return false;
 
         Ray ray = new Ray(transform.position + Vector3.up * 1.5f, (player.position - (transform.position + Vector3.up * 1.5f)).normalized);
-        if (Physics.Raycast(ray, out RaycastHit hit, viewDistance))
+        if (Physics.Raycast(ray, out RaycastHit hit, enemyData.viewDistance))
         {
             return hit.transform == player;
         }
@@ -183,7 +177,7 @@ public class EnemyAI : MonoBehaviour
         {
             weapon.TryAttack(playerStats);
         }
-        else if (distance <= attackRange)
+        else if (distance <= enemyData.attackRange)
         {
             TryAttackPlayer();
         }
@@ -191,11 +185,11 @@ public class EnemyAI : MonoBehaviour
 
     private void TryAttackPlayer()
     {
-        if (Time.time < lastAttackTime + attackCooldown || playerStats == null) return;
+        if (Time.time < lastAttackTime + enemyData.attackCooldown || playerStats == null) return;
 
-        playerStats.TakeDamage(attackDamage);
+        playerStats.TakeDamage(enemyData.attackDamage);
         lastAttackTime = Time.time;
-        Debug.Log($"{gameObject.name} attacked player for {attackDamage} damage!");
+        Debug.Log($"{gameObject.name} attacked player for {enemyData.attackDamage} damage!");
     }
 
     public void TakeDamage(int amount)
