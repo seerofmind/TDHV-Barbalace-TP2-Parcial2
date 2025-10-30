@@ -91,7 +91,7 @@ public class PlayerStats : MonoBehaviour
 
         // Normal gameplay logic
         HandleCrouchInput();
-        HandleStamina();
+        //HandleStamina();
         HandleMovement();
 
         // Death check
@@ -117,7 +117,7 @@ public class PlayerStats : MonoBehaviour
     }
 
     // ------------------------------- Stamina -------------------------------
-    private void HandleStamina()
+    /*private void HandleStamina()
     {
         float delta = Time.deltaTime;
         float totalDrain = 0f;
@@ -158,7 +158,7 @@ public class PlayerStats : MonoBehaviour
                 UpdateStaminaState(staminaState, stamina);
             }
         }
-    }
+    }*/
 
     private void UpdateStaminaState(StaminaState newState, float value)
     {
