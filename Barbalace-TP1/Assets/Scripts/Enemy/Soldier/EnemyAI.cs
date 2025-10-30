@@ -27,7 +27,7 @@ public class EnemyAI : MonoBehaviour
   
     private float lastAttackTime;
 
-    [Header("Movement & Vision")]
+    
     private float moveSpeed;
     private float normalSpeed = 2f;
   
@@ -38,8 +38,7 @@ public class EnemyAI : MonoBehaviour
     private float drainRate;
 
     private bool wasShotByPlayer = false;
-    private float chaseTimer = 0f;
-    public float chaseDurationAfterShot = 5f;
+    
 
     [Header("Runtime Info")]
     [SerializeField] private EnemyState currentState = EnemyState.Normal;
@@ -206,7 +205,7 @@ public class EnemyAI : MonoBehaviour
             damageStateTimer = damageStateDuration;
             controller.Move(Vector3.zero);
             wasShotByPlayer = true;
-            chaseTimer = chaseDurationAfterShot;
+           
         }
         else
         {
@@ -270,7 +269,7 @@ public class EnemyAI : MonoBehaviour
 
         SetState(EnemyState.Chase);
         wasShotByPlayer = true;
-        chaseTimer = chaseDurationAfterShot;
+        
         //Debug.Log($"{gameObject.name} is now chasing the player!");
     }
 
