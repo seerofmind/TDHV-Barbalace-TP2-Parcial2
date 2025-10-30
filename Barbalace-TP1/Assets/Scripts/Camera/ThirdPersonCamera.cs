@@ -36,6 +36,8 @@ public class ThirdPersonCamera : MonoBehaviour
 
     void Start()
     {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
         if (target != null)
         {
             Vector3 dir = (target.position + Vector3.up * height) - transform.position;
@@ -49,6 +51,11 @@ public class ThirdPersonCamera : MonoBehaviour
 
     void LateUpdate()
     {
+        if (PauseMenu.GameIsPaused)
+        {
+            return;
+        }
+
         if (!target) return;
 
         // Read input
