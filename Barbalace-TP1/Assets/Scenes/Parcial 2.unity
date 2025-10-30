@@ -6234,7 +6234,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   player: {fileID: 868653660}
   enemyData: {fileID: 11400000, guid: e50f7753e78b0e641954a48305f26e9b, type: 2}
-  chaseDurationAfterShot: 5
   currentState: 0
   damageStateDuration: 1
 --- !u!1 &778605500
@@ -17291,7 +17290,7 @@ GameObject:
   - component: {fileID: 1261831329}
   - component: {fileID: 1261831328}
   - component: {fileID: 1261831332}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: SurveillanceCamera
   m_TagString: SC
   m_Icon: {fileID: 0}
@@ -17399,9 +17398,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14173e88537718749864e3d1fae2fe3e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Health: 100
-  ViewAngle: 60
-  ViewRange: 5
+  cameraData: {fileID: 11400000, guid: 4fc8a8581a174ba47a8f6858fb8fa675, type: 2}
   targetMask:
     serializedVersion: 2
     m_Bits: 8
