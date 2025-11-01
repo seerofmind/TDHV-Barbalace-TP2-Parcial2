@@ -14,7 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 100
   moveSpeed: 3
+  chaseSpeed: 3.5
   viewDistance: 10
   viewAngle: 45
   drainDistance: 5
   drainRate: 1
+  attackDamage: 20
+  attackRange: 2
+  attackCooldown: 1.5

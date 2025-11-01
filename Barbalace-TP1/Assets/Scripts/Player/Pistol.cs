@@ -13,10 +13,11 @@ public class Pistol : MonoBehaviour
     public int magazineSize = 15;   // bullets per magazine
     private int currentAmmo;        // current bullets left
     private bool isRecharging = false;
-
+    [SerializeField] private int reserveMagazines = 2; // Cargadores de reserva (2 al inicio)
+    public const int MAX_MAGAZINES = 2; // Máximo de cargadores, para referencia al reaparecer
     public int CurrentAmmo => currentAmmo;
     public int MagazineSize => magazineSize;
-
+    public int ReserveMagazines => reserveMagazines;
 
     [Header("References")]
     public Transform firePoint;
@@ -43,6 +44,7 @@ public class Pistol : MonoBehaviour
             Debug.LogError("No 'Recharge' action found in InputActions!");
 
         currentAmmo = magazineSize; // start full
+        ResetAmmoOnStart();
     }
 
     void Update()
@@ -55,13 +57,14 @@ public class Pistol : MonoBehaviour
                 nextTimeToFire = Time.time + 1f / fireRate;
                 Shoot();
             }
-            else
+            else if (reserveMagazines > 0) // Si no hay balas, pero sí cargadores
             {
-                Debug.Log("No ammo! Press R to recharge.");
+                Debug.Log("Magazine empty. Need to recharge.");
             }
-
-            
-
+            else // 🎯 SIN BALAS Y SIN CARGADORES
+            {
+                Debug.Log("No magazines left.");
+            }
         }
 
         // 🔋 Handle recharging
@@ -70,7 +73,14 @@ public class Pistol : MonoBehaviour
             TryRecharge();
         }
     }
+    // ... (El método Shoot() sigue igual)
 
+    public void ResetAmmoOnStart()
+    {
+        currentAmmo = magazineSize;
+        reserveMagazines = MAX_MAGAZINES;
+        Debug.Log($"Munición inicializada: {reserveMagazines} cargadores de reserva y {currentAmmo} balas en el cargador.");
+    }
     void Shoot()
     {
         currentAmmo--;
@@ -100,6 +110,11 @@ public class Pistol : MonoBehaviour
                 }
 
             }
+            var surveillanceCamera = hit.collider.GetComponent<SurveillanceCamera>();
+            if (surveillanceCamera != null)
+            {
+                surveillanceCamera.TakeDamage(damage);
+            }
         }
         else
         {
@@ -125,6 +140,13 @@ public class Pistol : MonoBehaviour
             return;
         }
 
+        // 🎯 VERIFICACIÓN CLAVE: Solo permite recargar si hay cargadores de reserva
+        if (reserveMagazines <= 0)
+        {
+            Debug.Log("No reserve magazines left.");
+            return;
+        }
+
         StartCoroutine(Recharge());
     }
 
@@ -136,9 +158,14 @@ public class Pistol : MonoBehaviour
         // Optional: add recharge animation or sound here
         yield return new WaitForSeconds(1.5f); // recharge delay
 
+        // 🎯 CONSUMIR UN CARGADOR DE RESERVA
+        reserveMagazines--;
+
+        // Rellenar el cargador actual
         currentAmmo = magazineSize;
+
         isRecharging = false;
-        Debug.Log("Recharged!");
+        Debug.Log($"Recharged! {reserveMagazines} magazines left.");
     }
 
     IEnumerator ShowTracer(Vector3 start, Vector3 end, float duration = 0.3f)

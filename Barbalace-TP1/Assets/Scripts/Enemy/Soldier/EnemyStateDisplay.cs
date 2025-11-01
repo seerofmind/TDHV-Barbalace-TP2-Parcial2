@@ -5,7 +5,7 @@ using System.Collections;
 public class EnemyStateDisplay : MonoBehaviour
 {
     [Header("References")]
-    public EnemyAI enemy;
+    private EnemyAI enemy;
     public TextMeshPro textMesh; 
     public Vector3 offset = new Vector3(0, 2f, 0);
 
@@ -18,6 +18,13 @@ public class EnemyStateDisplay : MonoBehaviour
 
     void Start()
     {
+        enemy = GetComponentInParent<EnemyAI>();
+        if (enemy == null)
+        {
+            Debug.LogError("EnemyStateDisplay requiere un componente EnemyAI en el objeto o en un padre.", this);
+            enabled = false; // Desactiva el script si no encuentra el objetivo
+            return;
+        }
         mainCamera = Camera.main;
 
         // Ensure there's a CanvasGroup for fading
@@ -84,7 +91,7 @@ public class EnemyStateDisplay : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (enemy)
+        if (enemy != null)
         {
             enemy.OnEnemyDied -= HandleEnemyDied;
             enemy.OnEnemyRespawned -= HandleEnemyRespawned;

@@ -8,6 +8,7 @@ public class PlayerStats : MonoBehaviour
     [Header("References")]
     public PlayerData playerData;
     public Transform playerCamera;
+    public Pistol playerPistol;
 
     [Header("Respawn Settings")]
     public Transform initialPosition; // Optional spawn point in Inspector
@@ -47,7 +48,7 @@ public class PlayerStats : MonoBehaviour
         if (!playerInput)
             playerInput = FindFirstObjectByType<PlayerInput>();
 
-        sprintAction = playerInput.actions["Sprint"];
+        //sprintAction = playerInput.actions["Sprint"];
         moveAction = playerInput.actions["Move"];
 
         Cursor.lockState = CursorLockMode.Locked;
@@ -200,8 +201,8 @@ public class PlayerStats : MonoBehaviour
 
         if (isCrouching)
             currentSpeed = playerData.crouchSpeed;
-        else if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint)
-            currentSpeed = playerData.sprintSpeed;
+        /*else if (sprintAction.ReadValue<float>() > 0f && stamina > 0f && canSprint)
+            currentSpeed = playerData.sprintSpeed;*/
 
         if (controller.isGrounded)
         {
@@ -285,8 +286,14 @@ public class PlayerStats : MonoBehaviour
 
         stamina = playerData.maxStamina;
 
+        if (playerPistol != null)
+        {
+            playerPistol.ResetAmmoOnStart();
+        }
+
         isDead = false;
-    }
+}
+
 }
 
 

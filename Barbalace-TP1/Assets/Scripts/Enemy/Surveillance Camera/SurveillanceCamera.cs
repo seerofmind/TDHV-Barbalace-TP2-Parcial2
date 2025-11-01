@@ -12,7 +12,11 @@ public class SurveillanceCamera : MonoBehaviour
     // Referencia al objetivo (e.g., el jugador)
     private Transform target;
 
-    
+    [Header("Health Settings")]
+    [SerializeField] private int currentHealth; // Salud actual
+    private bool isDestroyed = false;
+
+
     void Start()
     {
         
@@ -21,15 +25,39 @@ public class SurveillanceCamera : MonoBehaviour
         {
             target = player.transform;
         }
+
+        currentHealth = 50;
     }
 
     void Update()
     {
+        if (isDestroyed) return;
         if (target != null)
         {
             CheckForTarget();
         }
     }
+    public void TakeDamage(int damageAmount)
+    {
+        if (isDestroyed) return;
+
+        currentHealth -= damageAmount;
+        Debug.Log($"{gameObject.name} received {damageAmount} damage. HP Left: {currentHealth}");
+
+        if (currentHealth <= 0)
+        {
+            Die();
+        }
+    }
+
+    private void Die()
+    {
+        isDestroyed = true;
+        Debug.Log($"{gameObject.name} destruida.");
+        Destroy(gameObject);
+    }
+
+
 
     private void CheckForTarget()
     {
