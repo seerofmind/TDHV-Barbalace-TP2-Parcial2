@@ -12444,7 +12444,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerData: {fileID: 11400000, guid: 7050c1e32470f024dbb46497198cb424, type: 2}
   playerCamera: {fileID: 1643465622}
-  playerPistol: {fileID: 0}
+  playerPistol: {fileID: 1539237715}
   initialPosition: {fileID: 0}
   playerInput: {fileID: 868653661}
 --- !u!1 &888757107
@@ -17343,6 +17343,38 @@ MonoBehaviour:
   m_SelectedFaces: 
   m_SelectedEdges: []
   m_SelectedVertices: 
+--- !u!1 &1184501540
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1184501541}
+  m_Layer: 0
+  m_Name: Collectables
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1184501541
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1184501540}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1785393553}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!43 &1190530336
 Mesh:
   m_ObjectHideFlags: 0
@@ -19501,7 +19533,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 2}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: -168, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1372293261
@@ -21311,7 +21343,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: -2024.8608, y: -146.0022, z: -1396.0319, w: 129.00574}
+  m_margin: {x: -2194.8074, y: -157.1202, z: -1426.2094, w: 129.00574}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -23426,7 +23458,7 @@ Transform:
   m_GameObject: {fileID: 1643465621}
   serializedVersion: 2
   m_LocalRotation: {x: 0.15590918, y: -0.7060877, z: 0.16406706, w: 0.6709803}
-  m_LocalPosition: {x: 20.807903, y: 3.74, z: -0.23}
+  m_LocalPosition: {x: 53.36, y: 2.9, z: 12.77}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -25041,7 +25073,7 @@ GameObject:
   - component: {fileID: 1785393560}
   - component: {fileID: 1785393561}
   m_Layer: 0
-  m_Name: Collectable
+  m_Name: MagazineItem
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -25060,7 +25092,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 0.79834}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 1184501541}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &1785393555
 MeshFilter:
@@ -64919,7 +64951,7 @@ SceneRoots:
   - {fileID: 1643465622}
   - {fileID: 2088865710}
   - {fileID: 1454980081}
-  - {fileID: 1785393553}
   - {fileID: 2072796081}
   - {fileID: 1826855131}
   - {fileID: 2109033096}
+  - {fileID: 1184501541}

@@ -168,6 +168,27 @@ public class Pistol : MonoBehaviour
         Debug.Log($"Recharged! {reserveMagazines} magazines left.");
     }
 
+
+    public bool AddReserveMagazines(int amount)
+    {
+        if (reserveMagazines >= MAX_MAGAZINES)
+        {
+            Debug.Log("Cargadores llenos. No se puede recoger más munición.");
+            return false;
+        }
+
+        // Calcular el nuevo total, limitándolo al máximo
+        int oldMagazines = reserveMagazines;
+        reserveMagazines = Mathf.Min(reserveMagazines + amount, MAX_MAGAZINES);
+        int addedAmount = reserveMagazines - oldMagazines;
+
+        if (addedAmount > 0)
+        {
+            Debug.Log($"Recogido: +{addedAmount} cargadores. Total: {reserveMagazines}/{MAX_MAGAZINES}.");
+            return true;
+        }
+        return false;
+    }
     IEnumerator ShowTracer(Vector3 start, Vector3 end, float duration = 0.3f)
     {
         LineRenderer line = new GameObject("Tracer").AddComponent<LineRenderer>();
