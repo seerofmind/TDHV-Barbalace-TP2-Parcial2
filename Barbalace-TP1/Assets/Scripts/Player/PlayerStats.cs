@@ -242,6 +242,29 @@ public class PlayerStats : MonoBehaviour
         }
     }
 
+    public bool Heal(int amount)
+    {
+        if (health >= playerData.maxHealth)
+        {
+            Debug.Log("HP already on max.");
+            return false;
+        }
+
+        int oldHealth = health;
+
+        // Aplicar curación, asegurando que no exceda la vida máxima
+        health = Mathf.Min(health + amount, playerData.maxHealth);
+
+        int healedAmount = health - oldHealth;
+
+        if (healedAmount > 0)
+        {
+            Debug.Log($"Healed: +{healedAmount} HP. Current HP: {health}/{playerData.maxHealth}.");
+            return true;
+        }
+        return false;
+    }
+
     public int GetMaxHealth()
     { 
         // Retorno el maximo de vida. El metodo retorna un "int" 
