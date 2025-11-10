@@ -4,8 +4,8 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public class MedkitItem : MonoBehaviour
 {
-    [Header("Item Settings")]
-    public int healthToRestore = 50; // Cuánta vida restaura este botiquín
+    [Header("References")]
+    public MedKitSO medkitData; 
 
     private void OnTriggerEnter(Collider other)
     {
@@ -18,7 +18,7 @@ public class MedkitItem : MonoBehaviour
             if (playerStats != null)
             {
                 // 3. Llamar al método de curación del jugador
-                bool healthRestored = playerStats.Heal(healthToRestore);
+                bool healthRestored = playerStats.Heal(medkitData.healthToRestore);
 
                 // 4. Si se curó alguna cantidad de vida, destruir el item
                 if (healthRestored)

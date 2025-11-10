@@ -2915,7 +2915,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4a3fa6820c129f54eb7b1d5a668d6852, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  healthToRestore: 50
+  medkitData: {fileID: 11400000, guid: 4df1e518bb565d544ada222e300815f5, type: 2}
 --- !u!64 &325167340
 MeshCollider:
   m_ObjectHideFlags: 0
