@@ -193,6 +193,7 @@ public class EnemyAI : MonoBehaviour
 
     public void TakeDamage(int amount)
     {
+        Debug.Log(amount);
         if (currentState == EnemyState.Dead) return;
 
         currentHealth -= amount;

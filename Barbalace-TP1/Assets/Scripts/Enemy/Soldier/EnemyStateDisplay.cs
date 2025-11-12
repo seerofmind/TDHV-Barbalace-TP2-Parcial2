@@ -18,7 +18,7 @@ public class EnemyStateDisplay : MonoBehaviour
 
     void Start()
     {
-        enemy = GetComponentInParent<EnemyAI>();
+        enemy = GetComponent<EnemyAI>();
         if (enemy == null)
         {
             Debug.LogError("EnemyStateDisplay requiere un componente EnemyAI en el objeto o en un padre.", this);
