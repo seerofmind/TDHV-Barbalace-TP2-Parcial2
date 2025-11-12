@@ -105,7 +105,7 @@ public class Pistol : MonoBehaviour
                 // 🏃‍♂️ Force it to chase the player if not dead
                 if (!enemy.IsDead)
                 {
-                    enemy.TakeDamage(damage);
+                    
                     enemy.ForceChase();
                 }
 
