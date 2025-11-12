@@ -96,7 +96,7 @@ public class Pistol : MonoBehaviour
             Debug.Log("Hit: " + hit.collider.name);
             targetPoint = hit.point;
 
-            var enemy = hit.collider.GetComponent<EnemyAI>();
+            var enemy = hit.collider.GetComponentInParent<EnemyAI>();
             if (enemy != null)
             {
                 // 🧠 Enemy takes damage
@@ -105,6 +105,7 @@ public class Pistol : MonoBehaviour
                 // 🏃‍♂️ Force it to chase the player if not dead
                 if (!enemy.IsDead)
                 {
+                    
                     enemy.ForceChase();
                 }
 
