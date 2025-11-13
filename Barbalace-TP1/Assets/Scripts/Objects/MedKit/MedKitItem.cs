@@ -13,7 +13,7 @@ public class MedkitItem : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             // 2. Buscar el script del jugador (PlayerStats)
-            PlayerStats playerStats = other.GetComponent<PlayerStats>();
+            PlayerStats playerStats = other.GetComponentInParent<PlayerStats>();
 
             if (playerStats != null)
             {
@@ -23,8 +23,12 @@ public class MedkitItem : MonoBehaviour
                 // 4. Si se curó alguna cantidad de vida, destruir el item
                 if (healthRestored)
                 {
-                    // Opcional: Sonido/Efecto de recogida aquí
+                    
                     Destroy(gameObject);
+                }
+                else
+                {
+                    Debug.Log("Vida ya al máximo, no se recoge el Medkit.");
                 }
             }
         }
