@@ -101,7 +101,7 @@ public class SurveillanceCamera : MonoBehaviour
     }
 
     
-    private void OnDrawGizmosSelected()
+    private void OnDrawGizmos()
     {
         if (cameraData == null)
         {
