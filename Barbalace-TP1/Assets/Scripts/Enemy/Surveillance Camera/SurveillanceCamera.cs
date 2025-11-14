@@ -97,6 +97,11 @@ public class SurveillanceCamera : MonoBehaviour
         
         Debug.Log("Objective Detected!");
 
+        if (alertManager.Instance != null)
+        {
+            alertManager.Instance.TriggerGlobalAlert();
+        }
+
 
     }
 

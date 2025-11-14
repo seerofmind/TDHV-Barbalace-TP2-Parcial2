@@ -71,7 +71,8 @@ public class EnemyStateDisplay : MonoBehaviour
         switch (state)
         {
             case "Normal": textMesh.color = Color.white; break;
-            case "Patrol": textMesh.color = Color.cyan; break; // 🎯 NUEVO COLOR PARA PATROL
+            case "Patrol": textMesh.color = Color.cyan; break;
+            case "Alert": textMesh.color = Color.yellow; break;// 🎯 NUEVO COLOR PARA PATROL
             case "Chase": textMesh.color = Color.red; break;
             case "Damage": textMesh.color = Color.yellow; break;
             case "Dead": textMesh.color = Color.gray; break;

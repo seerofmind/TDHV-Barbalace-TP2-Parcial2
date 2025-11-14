@@ -1,10 +1,14 @@
 ﻿using UnityEngine;
 using UnityEngine.AI;
+using System.Collections;
+
+
+
 
 [RequireComponent(typeof(CharacterController))]
 public class EnemyAI : MonoBehaviour
 {
-    public enum EnemyState { Normal, Patrol, Chase, Damage, Dead }
+    public enum EnemyState { Normal, Patrol, Alert, Chase, Damage, Dead }
 
     public event System.Action OnEnemyDied;
     public event System.Action OnEnemyRespawned;
@@ -18,9 +22,15 @@ public class EnemyAI : MonoBehaviour
 
     [Header("Patrol Settings")]
     public Transform[] patrolPoints; // 🎯 NUEVO: Puntos de Patrulla
-    public float patrolPointTolerance = 0.5f; // Distancia para considerar "llegado"
+    public float patrolPointTolerance = 1.5f; // Distancia para considerar "llegado"
     private int currentPatrolIndex = 0; // Índice del punto de patrulla actual
 
+  
+    [Header("Alert Settings")]
+    public float alertTimeLimit = 3f; // Tiempo límite para pasar a alerta (3 segundos)
+    private Coroutine alertTimerCoroutine; // Referencia para controlar el temporizador
+    
+    
     private NavMeshAgent agent;
     private EnemyWeapon weapon;
 
@@ -83,6 +93,18 @@ public class EnemyAI : MonoBehaviour
         weapon = GetComponentInChildren<EnemyWeapon>();
         if (weapon == null)
             Debug.LogWarning($"{gameObject.name} has no EnemyWeapon assigned!");
+
+        if (alertManager.Instance != null)
+        {
+            alertManager.Instance.OnGlobalAlertTriggered += ForceAlert;
+        }
+
+        
+        if (patrolPoints != null && patrolPoints.Length > 0)
+        {
+            SetState(EnemyState.Patrol); // ¡Establece el estado inicial!
+            currentPatrolIndex = 0;
+        }
     }
 
     void Update()
@@ -93,29 +115,57 @@ public class EnemyAI : MonoBehaviour
 
         bool canSeePlayer = PlayerInConeOfVision();
 
-        // Start chasing if player seen or recently shot
+       
         if (canSeePlayer || wasShotByPlayer)
         {
+            // 💥 Si cualquier Soldier detecta al jugador, activa la alerta global
+            if (alertManager.Instance != null && !alertManager.Instance.IsGlobalAlert)
+            {
+                alertManager.Instance.TriggerGlobalAlert();
+            }
             ForceChase();
         }
 
-        // Movement & attack logic
+       
+
         switch (currentState)
         {
             case EnemyState.Normal:
-                Patrol();
+                // No hace nada
                 break;
 
-            case EnemyState.Patrol: 
-                Patrol();
+            case EnemyState.Patrol:
+                // Si la Alerta Global se activa MIENTRAS patrulla, debe interrumpir
+                if (alertManager.Instance != null && alertManager.Instance.IsGlobalAlert)
+                {
+                    ForceChase();
+                    break;
+                }
+                Patrol(); // Ejecución normal de la Patrulla
+                break;
+
+            case EnemyState.Alert:
+                // Pasa a Chase si hay alerta global (como ya está definido en ForceAlert)
+                ForceChase();
                 break;
 
             case EnemyState.Chase:
+                
+                if (!canSeePlayer && (alertManager.Instance == null || !alertManager.Instance.IsGlobalAlert))
+                {
+                    if (patrolPoints != null && patrolPoints.Length > 0)
+                    {
+                        SetState(EnemyState.Patrol);
+                    }
+                    else
+                    {
+                        SetState(EnemyState.Normal);
+                    }
+                    break;
+                }
                 ChasePlayer();
                 break;
         }
-
-
     }
 
     private void HandleDamageState()
@@ -152,53 +202,68 @@ public class EnemyAI : MonoBehaviour
 
     void Patrol()
     {
-        if (patrolPoints == null || patrolPoints.Length == 0)
+        if (patrolPoints == null || patrolPoints.Length == 0 || controller == null || !controller.enabled)
         {
-            SetState(EnemyState.Normal); // Vuelve al estado normal si pierde los puntos
+            SetState(EnemyState.Normal);
             return;
         }
 
         Transform targetPoint = patrolPoints[currentPatrolIndex];
+        Vector3 direction = targetPoint.position - transform.position;
 
-        // 1. Usar NavMeshAgent para el movimiento si está disponible
-        if (agent != null && agent.enabled)
+        // Calcula la dirección y la distancia solo en el plano horizontal (XZ).
+        Vector3 directionFlat = direction;
+        directionFlat.y = 0f;
+        float distanceFlat = directionFlat.magnitude;
+
+        // Rotación (se mantiene igual)
+        if (directionFlat.sqrMagnitude > 0.01f)
         {
-            if (agent.destination != targetPoint.position)
-            {
-                agent.SetDestination(targetPoint.position);
-                agent.speed = normalSpeed; // O una variable de velocidad de patrulla
-            }
-
-            // Verificar si el agente ha llegado al destino
-            if (!agent.pathPending && agent.remainingDistance < patrolPointTolerance)
-            {
-                GoToNextPatrolPoint();
-            }
+            Quaternion targetRotation = Quaternion.LookRotation(directionFlat);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 5f * Time.deltaTime);
         }
-        // 2. Si no hay NavMeshAgent (usas CharacterController para todo), usa CharacterController
-        else if (controller != null && controller.enabled)
+
+        // -------------------------------------------------------------
+        // 🎯 LÓGICA DE MOVIMIENTO Y GRAVEDAD 🎯
+        // -------------------------------------------------------------
+
+        // Mueve en la dirección XZ
+        Vector3 moveVector = directionFlat.normalized * enemyData.moveSpeed;
+
+        // ✅ CORRECCIÓN: Fuerza de empuje constante hacia abajo (simulación de gravedad).
+        // Esto asegura que CharacterController.Move() siempre vea un cambio de Y, 
+        // lo cual evita que se "atasque" si está en el suelo.
+        float gravityPush = -9.81f; // Usa una fuerza negativa constante.
+
+        // Si el controlador está en el suelo, aplicamos un pequeño empuje; 
+        // si no, aplicamos la gravedad completa (si ya la manejas en otra variable, úsala).
+        if (controller.isGrounded)
         {
-            Vector3 direction = (targetPoint.position - transform.position);
-            float distance = direction.magnitude;
-            direction.y = 0f;
-
-            // Rotación para que mire al punto de patrulla
-            if (direction.sqrMagnitude > 0.01f)
-            {
-                Quaternion targetRotation = Quaternion.LookRotation(direction);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 5f * Time.deltaTime);
-            }
-
-            // Mover usando CharacterController
-            Vector3 moveVelocity = direction.normalized * normalSpeed * Time.deltaTime;
-            controller.Move(moveVelocity);
-
-            // Si llegamos al punto, pasamos al siguiente
-            if (distance < patrolPointTolerance)
-            {
-                GoToNextPatrolPoint();
-            }
+            // Empuje mínimo para asegurar el movimiento en la superficie.
+            moveVector.y = -2f;
         }
+        else
+        {
+            // Si no está en el suelo, usa la gravedad normal (o tu variable verticalVelocity).
+            // moveVector.y = verticalVelocity; // Si tienes una variable de velocidad vertical
+            moveVector.y = gravityPush; // Si solo quieres aplicar la fuerza.
+        }
+
+        // 🎯 DEBUG CLAVE: Muestra el vector que se está intentando mover
+        Debug.Log($"Movimiento Patrulla: {moveVector * Time.deltaTime}. Distancia: {distanceFlat}");
+
+        controller.Move(moveVector * Time.deltaTime);
+
+        // -------------------------------------------------------------
+
+        // Verificación de llegada
+        if (distanceFlat < patrolPointTolerance)
+        {
+            GoToNextPatrolPoint();
+        }
+        Debug.Log($"Patrullando hacia {targetPoint.name}. Posición actual: {transform.position}");
+        // Si esto se imprime, sabes que el script Patrol está siendo llamado, 
+        // y el problema es la llamada a controller.Move().
     }
     private void GoToNextPatrolPoint()
     {
@@ -207,6 +272,17 @@ public class EnemyAI : MonoBehaviour
         Debug.Log($"{gameObject.name} va al punto {currentPatrolIndex}");
     }
 
+    public void ForceAlert()
+    {
+        if (currentState == EnemyState.Dead) return;
+
+        // Primero cambiamos a Alert (para visualización/sonido)
+        SetState(EnemyState.Alert);
+
+        // Luego pasamos a Chase (o lo manejamos en Update, como arriba)
+        ForceChase();
+        // Nota: El 'AlertManager.IsGlobalAlert' mantendrá el estado en Chase
+    }
     private void ChasePlayer()
     {
         if (player == null) return;
@@ -252,6 +328,37 @@ public class EnemyAI : MonoBehaviour
         Debug.Log($"{gameObject.name} attacked player for {enemyData.attackDamage} damage!");
     }
 
+    private void StartAlertTimer()
+    {
+        // 1. Si ya existe un temporizador (fue disparado de nuevo antes de que terminara el anterior), lo detenemos.
+        if (alertTimerCoroutine != null)
+        {
+            StopCoroutine(alertTimerCoroutine);
+        }
+
+        // 2. Iniciamos el nuevo temporizador.
+        alertTimerCoroutine = StartCoroutine(AlertCountdown());
+    }
+
+    private IEnumerator AlertCountdown()
+    {
+        // 1. Espera el tiempo límite
+        yield return new WaitForSeconds(alertTimeLimit);
+
+        // 2. Después del tiempo, si el enemigo no está muerto y la alerta no está activa...
+        if (currentState != EnemyState.Dead && !alertManager.Instance.IsGlobalAlert)
+        {
+            // ... activa la alerta global.
+            if (alertManager.Instance != null)
+            {
+                alertManager.Instance.TriggerGlobalAlert();
+                // Esto forzará a este enemigo y a todos los demás al estado Chase.
+            }
+        }
+
+        // 3. Limpiamos la referencia
+        alertTimerCoroutine = null;
+    }
     public void TakeDamage(int amount)
     {
         Debug.Log(amount);
@@ -261,17 +368,24 @@ public class EnemyAI : MonoBehaviour
         currentHealth = Mathf.Max(0, currentHealth);
         Debug.Log($"{gameObject.name} took {amount} damage. Health: {currentHealth}");
 
-        if (currentHealth > 0)
+        if (currentHealth <= 0)
         {
-            SetState(EnemyState.Chase);
-            damageStateTimer = damageStateDuration;
-            controller.Move(Vector3.zero);
-            wasShotByPlayer = true;
-           
+            // El enemigo murió, cancelamos cualquier temporizador
+            if (alertTimerCoroutine != null)
+            {
+                StopCoroutine(alertTimerCoroutine);
+            }
+            Die();
         }
         else
         {
-            Die();
+            // 1. Pasa al estado de Daño temporalmente
+            SetState(EnemyState.Damage);
+
+            // 2. Si el enemigo sobrevive, inicia (o reinicia) el contador de alerta
+            StartAlertTimer();
+
+            Debug.Log($"Enemigo herido. Temporizador de alerta iniciado/reiniciado.");
         }
     }
 
