@@ -21,4 +21,6 @@ public class Soldier : ScriptableObject
     public int attackDamage = 20;          // fallback damage if weapon fails
     public float attackRange = 2f;         // fallback range if weapon fails
     public float attackCooldown = 1.5f;
+
+
 }

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using TMPro;
 using System.Collections;
 
@@ -35,27 +35,43 @@ public class EnemyStateDisplay : MonoBehaviour
         // Start fully visible
         canvasGroup.alpha = 1f;
 
-        // Subscribe to enemy events (we�ll set these up below)
+        // Subscribe to enemy events (we’ll set these up below)
         enemy.OnEnemyDied += HandleEnemyDied;
         enemy.OnEnemyRespawned += HandleEnemyRespawned;
     }
 
     void Update()
     {
-        if (!enemy || !textMesh) return;
+        if (!enemy || !textMesh || !mainCamera) return;
 
-        // Keep the text above the enemy
+        // 1. Mantener la posición del texto sobre el enemigo
         Vector3 worldPos = enemy.transform.position + offset;
-        Vector3 screenPos = Camera.main.WorldToScreenPoint(worldPos);
-        transform.position = screenPos;
 
-        // Update text content and color
+        // 🎯 MEJORA: Usar WorldToScreenPoint para UI en Screen Space es correcto, 
+        // pero si el Canvas es World Space, usa la rotación directa.
+
+        // 2. Hacer que el texto mire a la cámara (requerido)
+        // Usamos el vector de la cámara al objeto para determinar la rotación.
+        Quaternion targetRotation = Quaternion.LookRotation(transform.position - mainCamera.transform.position);
+        transform.rotation = targetRotation; // Aplicar rotación inmediata
+
+        // Si tu Canvas es Screen Space - Overlay/Camera, tu código original de posición es correcto:
+        // transform.position = mainCamera.WorldToScreenPoint(worldPos); 
+
+        // Si tu Canvas es World Space, usa la posición 3D:
+        transform.position = worldPos;
+
+
+        // 3. Actualizar el contenido (Esto incluye el estado Patrol)
         string state = enemy.CurrentStateName();
         textMesh.text = state;
+
+        // ... (El resto del switch para colores, incluyendo Patrol) ...
 
         switch (state)
         {
             case "Normal": textMesh.color = Color.white; break;
+            case "Patrol": textMesh.color = Color.cyan; break; // 🎯 NUEVO COLOR PARA PATROL
             case "Chase": textMesh.color = Color.red; break;
             case "Damage": textMesh.color = Color.yellow; break;
             case "Dead": textMesh.color = Color.gray; break;

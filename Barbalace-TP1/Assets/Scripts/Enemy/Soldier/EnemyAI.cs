@@ -4,7 +4,7 @@ using UnityEngine.AI;
 [RequireComponent(typeof(CharacterController))]
 public class EnemyAI : MonoBehaviour
 {
-    public enum EnemyState { Normal, Chase, Damage, Dead }
+    public enum EnemyState { Normal, Patrol, Chase, Damage, Dead }
 
     public event System.Action OnEnemyDied;
     public event System.Action OnEnemyRespawned;
@@ -15,6 +15,11 @@ public class EnemyAI : MonoBehaviour
     public Soldier enemyData;
     private CharacterController controller;
     private PlayerStats playerStats;
+
+    [Header("Patrol Settings")]
+    public Transform[] patrolPoints; // 🎯 NUEVO: Puntos de Patrulla
+    public float patrolPointTolerance = 0.5f; // Distancia para considerar "llegado"
+    private int currentPatrolIndex = 0; // Índice del punto de patrulla actual
 
     private NavMeshAgent agent;
     private EnemyWeapon weapon;
@@ -101,6 +106,10 @@ public class EnemyAI : MonoBehaviour
                 Patrol();
                 break;
 
+            case EnemyState.Patrol: 
+                Patrol();
+                break;
+
             case EnemyState.Chase:
                 ChasePlayer();
                 break;
@@ -143,7 +152,59 @@ public class EnemyAI : MonoBehaviour
 
     void Patrol()
     {
-        // Optional patrol logic
+        if (patrolPoints == null || patrolPoints.Length == 0)
+        {
+            SetState(EnemyState.Normal); // Vuelve al estado normal si pierde los puntos
+            return;
+        }
+
+        Transform targetPoint = patrolPoints[currentPatrolIndex];
+
+        // 1. Usar NavMeshAgent para el movimiento si está disponible
+        if (agent != null && agent.enabled)
+        {
+            if (agent.destination != targetPoint.position)
+            {
+                agent.SetDestination(targetPoint.position);
+                agent.speed = normalSpeed; // O una variable de velocidad de patrulla
+            }
+
+            // Verificar si el agente ha llegado al destino
+            if (!agent.pathPending && agent.remainingDistance < patrolPointTolerance)
+            {
+                GoToNextPatrolPoint();
+            }
+        }
+        // 2. Si no hay NavMeshAgent (usas CharacterController para todo), usa CharacterController
+        else if (controller != null && controller.enabled)
+        {
+            Vector3 direction = (targetPoint.position - transform.position);
+            float distance = direction.magnitude;
+            direction.y = 0f;
+
+            // Rotación para que mire al punto de patrulla
+            if (direction.sqrMagnitude > 0.01f)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(direction);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 5f * Time.deltaTime);
+            }
+
+            // Mover usando CharacterController
+            Vector3 moveVelocity = direction.normalized * normalSpeed * Time.deltaTime;
+            controller.Move(moveVelocity);
+
+            // Si llegamos al punto, pasamos al siguiente
+            if (distance < patrolPointTolerance)
+            {
+                GoToNextPatrolPoint();
+            }
+        }
+    }
+    private void GoToNextPatrolPoint()
+    {
+        // Avanzar al siguiente punto de forma cíclica
+        currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
+        Debug.Log($"{gameObject.name} va al punto {currentPatrolIndex}");
     }
 
     private void ChasePlayer()
