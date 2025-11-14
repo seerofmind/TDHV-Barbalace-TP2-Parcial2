@@ -250,7 +250,7 @@ public class EnemyAI : MonoBehaviour
         }
 
         // 🎯 DEBUG CLAVE: Muestra el vector que se está intentando mover
-        Debug.Log($"Movimiento Patrulla: {moveVector * Time.deltaTime}. Distancia: {distanceFlat}");
+        /*Debug.Log($"Movimiento Patrulla: {moveVector * Time.deltaTime}. Distancia: {distanceFlat}");*/
 
         controller.Move(moveVector * Time.deltaTime);
 
@@ -261,7 +261,7 @@ public class EnemyAI : MonoBehaviour
         {
             GoToNextPatrolPoint();
         }
-        Debug.Log($"Patrullando hacia {targetPoint.name}. Posición actual: {transform.position}");
+        /*Debug.Log($"Patrullando hacia {targetPoint.name}. Posición actual: {transform.position}");*/
         // Si esto se imprime, sabes que el script Patrol está siendo llamado, 
         // y el problema es la llamada a controller.Move().
     }
