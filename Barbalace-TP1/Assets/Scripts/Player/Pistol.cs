@@ -10,8 +10,8 @@ public class Pistol : MonoBehaviour
     public float fireRate = 1f;
 
     [Header("Ammo Settings")]
-    public int magazineSize = 15;   // bullets per magazine
-    private int currentAmmo;        // current bullets left
+    public int magazineSize = 15;    // bullets per magazine
+    private int currentAmmo;        // current bullets left
     private bool isRecharging = false;
     [SerializeField] private int reserveMagazines = 2; // Cargadores de reserva (2 al inicio)
     public const int MAX_MAGAZINES = 2; // Máximo de cargadores, para referencia al reaparecer
@@ -22,6 +22,8 @@ public class Pistol : MonoBehaviour
     [Header("References")]
     public Transform firePoint;
     public LayerMask enemyLayer;
+    // 🎯 NUEVA REFERENCIA: Para obtener el estado de salud del jugador
+    private PlayerStats playerStats;
 
     private float nextTimeToFire = 0f;
     private PlayerInput playerInput;
@@ -32,6 +34,9 @@ public class Pistol : MonoBehaviour
     void Awake()
     {
         playerInput = GetComponentInParent<PlayerInput>();
+        // 🎯 NUEVO: Obtener PlayerStats del componente padre
+        playerStats = GetComponentInParent<PlayerStats>();
+
         if (playerInput == null)
             Debug.LogError("No PlayerInput found on player!");
 
@@ -49,11 +54,29 @@ public class Pistol : MonoBehaviour
 
     void Update()
     {
+        // -------------------------------------------------------------
+        // 🎯 CORRECCIÓN 1: Detener toda lógica si el juego está pausado o el jugador murió
+        // -------------------------------------------------------------
+        if (Time.timeScale == 0 || (playerStats != null && playerStats.CurrentHealth <= 0))
+        {
+            // Si está recargando, detenemos la Coroutine para que no termine en pausa
+            if (isRecharging)
+            {
+                StopAllCoroutines();
+                isRecharging = false;
+            }
+            return;
+        }
+
+        // -------------------------------------------------------------
+
         // 🔫 Handle shooting
+        // Usamos Time.time para el cooldown, el cual respeta Time.timeScale
         if (!isRecharging && attackAction != null && attackAction.triggered && Time.time >= nextTimeToFire)
         {
             if (currentAmmo > 0)
             {
+                // El cálculo de cooldown es correcto
                 nextTimeToFire = Time.time + 1f / fireRate;
                 Shoot();
             }
@@ -73,7 +96,6 @@ public class Pistol : MonoBehaviour
             TryRecharge();
         }
     }
-    // ... (El método Shoot() sigue igual)
 
     public void ResetAmmoOnStart()
     {
@@ -81,6 +103,7 @@ public class Pistol : MonoBehaviour
         reserveMagazines = MAX_MAGAZINES;
         Debug.Log($"Munición inicializada: {reserveMagazines} cargadores de reserva y {currentAmmo} balas en el cargador.");
     }
+
     void Shoot()
     {
         currentAmmo--;
@@ -148,7 +171,9 @@ public class Pistol : MonoBehaviour
         Debug.Log("Recharging...");
 
         // Optional: add recharge animation or sound here
-        yield return new WaitForSeconds(1.5f); // recharge delay
+        // 🎯 CORRECCIÓN 2: USAR WaitForSecondsRealtime para el delay de recarga
+        // Esto permite que el jugador recargue inmediatamente al despausar
+        yield return new WaitForSecondsRealtime(1.5f);
 
         // 🎯 CONSUMIR UN CARGADOR DE RESERVA
         reserveMagazines--;
@@ -181,6 +206,7 @@ public class Pistol : MonoBehaviour
         }
         return false;
     }
+
     IEnumerator ShowTracer(Vector3 start, Vector3 end, float duration = 0.3f)
     {
         LineRenderer line = new GameObject("Tracer").AddComponent<LineRenderer>();
@@ -192,11 +218,12 @@ public class Pistol : MonoBehaviour
         line.SetPosition(0, start);
         line.SetPosition(1, end);
 
-        yield return new WaitForSeconds(duration);
+        // 🎯 CORRECCIÓN 3: USAR WaitForSecondsRealtime para tracers
+        // El tracer debe desaparecer aunque el juego esté pausado.
+        yield return new WaitForSecondsRealtime(duration);
         Destroy(line.gameObject);
     }
 }
-
 
 
 
