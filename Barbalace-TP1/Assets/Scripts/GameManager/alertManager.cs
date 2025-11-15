@@ -6,15 +6,12 @@ public class alertManager : MonoBehaviour
 {
     public static alertManager Instance { get; private set; }
 
-    // Evento que otros scripts (EnemyAI) escucharán.
-    public event Action OnGlobalAlertTriggered;
+    public event Action<EnemyAI> OnGlobalAlertTriggered;
 
-    // Estado actual de alerta.
     public bool IsGlobalAlert = false;
 
     void Awake()
     {
-        // Implementación del Singleton
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -22,26 +19,27 @@ public class alertManager : MonoBehaviour
         else
         {
             Instance = this;
-            // Opcional: DontDestroyOnLoad(gameObject); si necesitas persistencia
         }
     }
 
-    /// <summary>
-    /// Activa la alerta global, haciendo que todos los enemigos persigan al jugador.
-    /// </summary>
-    public void TriggerGlobalAlert()
+    public void TriggerGlobalAlert(EnemyAI triggeringEnemy)
     {
-        if (IsGlobalAlert) return; // Si ya estamos en alerta, salimos.
+        if (IsGlobalAlert) return;
 
         IsGlobalAlert = true;
-        Debug.Log("🚨 ALERTA GLOBAL ACTIVADA: Todos los enemigos en estado Chase.");
+        Debug.Log("🚨 ALERTA GLOBAL ACTIVADA por: " + (triggeringEnemy != null ? triggeringEnemy.name : "Sistema Externo (Cámara)"));
 
-        // Dispara el evento para todos los suscriptores (EnemyAI)
+        OnGlobalAlertTriggered?.Invoke(triggeringEnemy);
+
         StartCoroutine(EndAlertAfterTime(30f));
-        OnGlobalAlertTriggered?.Invoke();
     }
 
-    public event Action OnGlobalAlertDisabled; // Nuevo evento para notificar
+    public void TriggerGlobalAlert()
+    {
+        TriggerGlobalAlert(null);
+    }
+
+    public event Action OnGlobalAlertDisabled;
 
     private IEnumerator EndAlertAfterTime(float duration)
     {

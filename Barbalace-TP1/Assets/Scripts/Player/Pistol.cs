@@ -101,14 +101,6 @@ public class Pistol : MonoBehaviour
             {
                 // 🧠 Enemy takes damage
                 enemy.TakeDamage(damage);
-
-                // 🏃‍♂️ Force it to chase the player if not dead
-                if (!enemy.IsDead)
-                {
-                    
-                    enemy.ForceChase();
-                }
-
             }
             var surveillanceCamera = hit.collider.GetComponent<SurveillanceCamera>();
             if (surveillanceCamera != null)

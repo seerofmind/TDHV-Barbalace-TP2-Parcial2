@@ -5,90 +5,97 @@ using System.Collections;
 public class EnemyStateDisplay : MonoBehaviour
 {
     [Header("References")]
-    private EnemyAI enemy;
-    public TextMeshPro textMesh; 
+    public EnemyAI enemy;
+    public TextMeshPro textMesh;
     public Vector3 offset = new Vector3(0, 2f, 0);
 
     [Header("Fade Settings")]
-    public float fadeDuration = 0.5f; // How fast text fades in/out
+    public float fadeDuration = 0.5f;
 
-    private Camera mainCamera;
     private CanvasGroup canvasGroup;
     private Coroutine fadeCoroutine;
 
     void Start()
     {
-        enemy = GetComponent<EnemyAI>();
         if (enemy == null)
         {
-            Debug.LogError("EnemyStateDisplay requiere un componente EnemyAI en el objeto o en un padre.", this);
-            enabled = false; // Desactiva el script si no encuentra el objetivo
+            Debug.LogError("La referencia 'EnemyAI' no está asignada en el Inspector para " + gameObject.name, this);
+            enabled = false;
             return;
         }
-        mainCamera = Camera.main;
 
-        // Ensure there's a CanvasGroup for fading
+        if (textMesh == null)
+        {
+            textMesh = GetComponent<TextMeshPro>();
+            if (textMesh == null)
+            {
+                Debug.LogError("TextMeshPro no está asignado en este objeto.", this);
+                enabled = false;
+                return;
+            }
+        }
+
         canvasGroup = GetComponent<CanvasGroup>();
         if (!canvasGroup)
             canvasGroup = gameObject.AddComponent<CanvasGroup>();
 
-        // Start fully visible
         canvasGroup.alpha = 1f;
 
-        // Subscribe to enemy events (we’ll set these up below)
         enemy.OnEnemyDied += HandleEnemyDied;
         enemy.OnEnemyRespawned += HandleEnemyRespawned;
     }
 
     void Update()
     {
-        if (!enemy || !textMesh || !mainCamera) return;
+        if (enemy == null || textMesh == null) return;
 
-        // 1. Mantener la posición del texto sobre el enemigo
         Vector3 worldPos = enemy.transform.position + offset;
-
-        // 🎯 MEJORA: Usar WorldToScreenPoint para UI en Screen Space es correcto, 
-        // pero si el Canvas es World Space, usa la rotación directa.
-
-        // 2. Hacer que el texto mire a la cámara (requerido)
-        // Usamos el vector de la cámara al objeto para determinar la rotación.
-        Quaternion targetRotation = Quaternion.LookRotation(transform.position - mainCamera.transform.position);
-        transform.rotation = targetRotation; // Aplicar rotación inmediata
-
-        // Si tu Canvas es Screen Space - Overlay/Camera, tu código original de posición es correcto:
-        // transform.position = mainCamera.WorldToScreenPoint(worldPos); 
-
-        // Si tu Canvas es World Space, usa la posición 3D:
         transform.position = worldPos;
 
+        string stateName = enemy.CurrentStateName();
+        textMesh.text = stateName;
 
-        // 3. Actualizar el contenido (Esto incluye el estado Patrol)
-        string state = enemy.CurrentStateName();
-        textMesh.text = state;
-
-        // ... (El resto del switch para colores, incluyendo Patrol) ...
-
-        switch (state)
+        switch (stateName)
         {
-            case "Normal": textMesh.color = Color.white; break;
-            case "Patrol": textMesh.color = Color.cyan; break;
-            case "Alert": textMesh.color = Color.yellow; break;// 🎯 NUEVO COLOR PARA PATROL
-            case "Chase": textMesh.color = Color.red; break;
-            case "Damage": textMesh.color = Color.yellow; break;
-            case "Dead": textMesh.color = Color.gray; break;
+            case nameof(EnemyAI.EnemyState.Idle):
+                textMesh.color = Color.white;
+                break;
+            case nameof(EnemyAI.EnemyState.Patrol):
+                textMesh.color = Color.cyan;
+                break;
+            case nameof(EnemyAI.EnemyState.Alert):
+                textMesh.color = new Color(1f, 0.64f, 0f);
+                break;
+            case nameof(EnemyAI.EnemyState.Chase):
+                textMesh.color = Color.red;
+                break;
+            case nameof(EnemyAI.EnemyState.Damage):
+                textMesh.color = Color.magenta;
+                break;
+            case nameof(EnemyAI.EnemyState.Dead):
+                textMesh.color = Color.gray;
+                break;
         }
     }
 
     private void HandleEnemyDied()
     {
+        textMesh.text = nameof(EnemyAI.EnemyState.Dead);
+        textMesh.color = Color.gray;
+
         if (fadeCoroutine != null) StopCoroutine(fadeCoroutine);
-        fadeCoroutine = StartCoroutine(FadeText(0f)); // Fade out
+        fadeCoroutine = StartCoroutine(FadeText(0f));
     }
 
     private void HandleEnemyRespawned()
     {
+        if (enemy != null)
+        {
+            textMesh.text = enemy.CurrentStateName();
+        }
+
         if (fadeCoroutine != null) StopCoroutine(fadeCoroutine);
-        fadeCoroutine = StartCoroutine(FadeText(1f)); // Fade in
+        fadeCoroutine = StartCoroutine(FadeText(1f));
     }
 
     private IEnumerator FadeText(float targetAlpha)
@@ -99,11 +106,13 @@ public class EnemyStateDisplay : MonoBehaviour
         while (elapsed < fadeDuration)
         {
             elapsed += Time.deltaTime;
-            canvasGroup.alpha = Mathf.Lerp(startAlpha, targetAlpha, elapsed / fadeDuration);
+            float t = elapsed / fadeDuration;
+            canvasGroup.alpha = Mathf.Lerp(startAlpha, targetAlpha, t);
             yield return null;
         }
 
         canvasGroup.alpha = targetAlpha;
+        fadeCoroutine = null;
     }
 
     private void OnDestroy()
@@ -115,5 +124,3 @@ public class EnemyStateDisplay : MonoBehaviour
         }
     }
 }
-
-

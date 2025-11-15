@@ -1,452 +1,391 @@
 ﻿using UnityEngine;
 using UnityEngine.AI;
 using System.Collections;
+using System.Linq;
+using UnityEditor;
 
-
-
-
-[RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(NavMeshAgent))]
 public class EnemyAI : MonoBehaviour
 {
-    public enum EnemyState { Normal, Patrol, Alert, Chase, Damage, Dead }
-
+    public enum EnemyState { Idle, Patrol, Alert, Chase, Damage, Dead }
     public event System.Action OnEnemyDied;
     public event System.Action OnEnemyRespawned;
-    public event System.Action OnPlayerDied;
 
     [Header("References")]
     public Transform player;
     public Soldier enemyData;
-    private CharacterController controller;
+    private NavMeshAgent agent;
+    private EnemyWeapon weapon;
     private PlayerStats playerStats;
 
     [Header("Patrol Settings")]
-    public Transform[] patrolPoints; // 🎯 NUEVO: Puntos de Patrulla
-    public float patrolPointTolerance = 1.5f; // Distancia para considerar "llegado"
-    private int currentPatrolIndex = 0; // Índice del punto de patrulla actual
+    public Transform[] patrolPoints;
+    public float patrolPointTolerance = 1.5f;
+    private int currentPatrolIndex = 0;
 
-  
-    [Header("Alert Settings")]
-    public float alertTimeLimit = 3f; // Tiempo límite para pasar a alerta (3 segundos)
-    private Coroutine alertTimerCoroutine; // Referencia para controlar el temporizador
-    
-    
-    private NavMeshAgent agent;
-    private EnemyWeapon weapon;
-
-    public bool IsDead => currentState == EnemyState.Dead;
-    private float gravity = -9.81f;
-    private float verticalVelocity;
-
-
-  
-    private float lastAttackTime;
-
-    
-    private float moveSpeed;
-    private float normalSpeed = 2f;
-  
-    private float currentSpeed;
-
-   
-    
-    private float drainRate;
-
-    private bool wasShotByPlayer = false;
-    
+    [Header("Alert & Chase Settings")]
+    public float alertDelay = 0.4f;
+    public float chaseLostDelay = 3f;
+    public float alertJumpHeight = 0.4f;
+    public float alertJumpDuration = 0.25f;
+    private Coroutine stateTimerCoroutine;
+    private float timeSincePlayerLost = 0f;
 
     [Header("Runtime Info")]
-    [SerializeField] private EnemyState currentState = EnemyState.Normal;
+    [SerializeField] private EnemyState currentState = EnemyState.Idle;
     private int currentHealth;
-
-    private float damageStateTimer = 0f;
+    private EnemyState _previousState;
     public float damageStateDuration = 0.5f;
-
-    private Vector3 initialPosition;
-    private Quaternion initialRotation;
     private bool isDead = false;
+
+    private bool _playerInVision = false;
+    private RaycastHit _visionHit;
+    private float lastAttackTime;
+    private bool wasShotByPlayer = false;
+
+    // -----------------------------------------------------------------
+    //  LIFECYCLE
+    // -----------------------------------------------------------------
 
     void Awake()
     {
-        controller = GetComponent<CharacterController>();
-        initialPosition = transform.position;
-        initialRotation = transform.rotation;
-
-        currentHealth = enemyData.maxHealth;
-        moveSpeed = enemyData.moveSpeed;
-        drainRate = enemyData.drainRate;
-
-       
-
-        if (!player)
-            player = FindFirstObjectByType<PlayerStats>()?.transform;
-
-        if (player)
-            playerStats = player.GetComponent<PlayerStats>();
+        agent = GetComponent<NavMeshAgent>();
+        if (enemyData != null)
+        {
+            currentHealth = enemyData.maxHealth;
+            agent.speed = enemyData.moveSpeed;
+            agent.stoppingDistance = enemyData.attackRange * 0.9f;
+        }
+        if (!player) player = FindAnyObjectByType<PlayerStats>()?.transform;
+        if (player) playerStats = player.GetComponent<PlayerStats>();
+        weapon = GetComponentInChildren<EnemyWeapon>();
+        agent.enabled = true;
     }
 
     void Start()
     {
-        agent = GetComponent<NavMeshAgent>();
-        currentSpeed = normalSpeed;
-
-        weapon = GetComponentInChildren<EnemyWeapon>();
-        if (weapon == null)
-            Debug.LogWarning($"{gameObject.name} has no EnemyWeapon assigned!");
-
         if (alertManager.Instance != null)
         {
-            alertManager.Instance.OnGlobalAlertTriggered += ForceAlert;
+            alertManager.Instance.OnGlobalAlertTriggered += ReactToGlobalAlert;
         }
-
-        
-        if (patrolPoints != null && patrolPoints.Length > 0)
-        {
-            SetState(EnemyState.Patrol); // ¡Establece el estado inicial!
-            currentPatrolIndex = 0;
-        }
+        SetState((patrolPoints != null && patrolPoints.Length > 0) ? EnemyState.Patrol : EnemyState.Idle);
     }
 
     void Update()
     {
-        if (currentState == EnemyState.Dead || !player) return;
-
-        HandleDamageState();
+        if (isDead || player == null || playerStats == null || playerStats.CurrentHealth <= 0)
+        {
+            if (agent.enabled && agent.hasPath) agent.isStopped = true;
+            return;
+        }
 
         bool canSeePlayer = PlayerInConeOfVision();
 
-       
-        if (canSeePlayer || wasShotByPlayer)
-        {
-            // 💥 Si cualquier Soldier detecta al jugador, activa la alerta global
-            if (alertManager.Instance != null && !alertManager.Instance.IsGlobalAlert)
-            {
-                alertManager.Instance.TriggerGlobalAlert();
-            }
-            ForceChase();
-        }
+        timeSincePlayerLost = canSeePlayer ? 0f : timeSincePlayerLost + Time.deltaTime;
 
-       
+        if (currentState != EnemyState.Damage && currentState != EnemyState.Alert)
+        {
+            if ((currentState == EnemyState.Idle || currentState == EnemyState.Patrol))
+            {
+                if (wasShotByPlayer || (alertManager.Instance != null && alertManager.Instance.IsGlobalAlert))
+                {
+                    SetState(EnemyState.Alert, triggerJump: false);
+                }
+                else if (canSeePlayer)
+                {
+                    SetState(EnemyState.Alert, triggerJump: true);
+                }
+            }
+        }
 
         switch (currentState)
         {
-            case EnemyState.Normal:
-                // No hace nada
+            case EnemyState.Idle:
+                if (agent.enabled) agent.isStopped = true;
                 break;
-
             case EnemyState.Patrol:
-                // Si la Alerta Global se activa MIENTRAS patrulla, debe interrumpir
-                if (alertManager.Instance != null && alertManager.Instance.IsGlobalAlert)
-                {
-                    ForceChase();
-                    break;
-                }
-                Patrol(); // Ejecución normal de la Patrulla
+                Patrol();
                 break;
-
             case EnemyState.Alert:
-                // Pasa a Chase si hay alerta global (como ya está definido en ForceAlert)
-                ForceChase();
+                LookAtPlayerFlat();
                 break;
-
             case EnemyState.Chase:
-                
-                if (!canSeePlayer && (alertManager.Instance == null || !alertManager.Instance.IsGlobalAlert))
+                if (!canSeePlayer && timeSincePlayerLost >= chaseLostDelay && (alertManager.Instance == null || !alertManager.Instance.IsGlobalAlert))
                 {
-                    if (patrolPoints != null && patrolPoints.Length > 0)
-                    {
-                        SetState(EnemyState.Patrol);
-                    }
-                    else
-                    {
-                        SetState(EnemyState.Normal);
-                    }
-                    break;
+                    SetState((patrolPoints != null && patrolPoints.Length > 0) ? EnemyState.Patrol : EnemyState.Idle);
+                    timeSincePlayerLost = 0f;
                 }
-                ChasePlayer();
+                if (currentState == EnemyState.Chase) ChasePlayer();
                 break;
         }
     }
 
-    private void HandleDamageState()
-    {
-        if (currentState != EnemyState.Damage) return;
+    // -----------------------------------------------------------------
+    //  STATE LOGIC
+    // -----------------------------------------------------------------
 
-        damageStateTimer -= Time.deltaTime;
-        if (damageStateTimer <= 0f)
-        {
-            SetState(PlayerInConeOfVision() ? EnemyState.Chase : EnemyState.Normal);
-        }
+    private void LookAtPlayerFlat()
+    {
+        if (player == null) return;
+        Vector3 direction = (player.position - transform.position);
+        direction.y = 0f;
+        if (direction.sqrMagnitude > 0.01f)
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), 5f * Time.deltaTime);
     }
 
     private bool PlayerInConeOfVision()
     {
-        if (!player) return false;
+        _playerInVision = false;
+        if (!player || enemyData == null) return false;
 
-        Vector3 toPlayer = player.position - transform.position;
-        if (toPlayer.magnitude > enemyData.viewDistance) return false;
+        Vector3 eyePosition = transform.position + Vector3.up * 1.5f;
+        Vector3 toPlayer = player.position - eyePosition;
+        float distance = toPlayer.magnitude;
 
-        Vector3 dir = toPlayer.normalized;
-        dir.y = 0f;
+        if (distance > enemyData.viewDistance || Vector3.Angle(transform.forward, toPlayer.normalized) > enemyData.viewAngle / 2f) return false;
 
-        if (Vector3.Angle(transform.forward, dir) > enemyData.viewAngle) return false;
-
-        Ray ray = new Ray(transform.position + Vector3.up * 1.5f, (player.position - (transform.position + Vector3.up * 1.5f)).normalized);
-        if (Physics.Raycast(ray, out RaycastHit hit, enemyData.viewDistance))
+        Ray ray = new Ray(eyePosition, toPlayer.normalized);
+        if (Physics.Raycast(ray, out _visionHit, enemyData.viewDistance))
         {
-            return hit.transform == player;
+            _playerInVision = (_visionHit.transform == player);
+            return _visionHit.transform == player;
         }
-
         return false;
     }
 
     void Patrol()
     {
-        if (patrolPoints == null || patrolPoints.Length == 0 || controller == null || !controller.enabled)
-        {
-            SetState(EnemyState.Normal);
-            return;
-        }
+        if (patrolPoints == null || patrolPoints.Length == 0) { SetState(EnemyState.Idle); return; }
+
+        if (!agent.enabled) agent.enabled = true;
+        agent.isStopped = false;
 
         Transform targetPoint = patrolPoints[currentPatrolIndex];
-        Vector3 direction = targetPoint.position - transform.position;
 
-        // Calcula la dirección y la distancia solo en el plano horizontal (XZ).
-        Vector3 directionFlat = direction;
-        directionFlat.y = 0f;
-        float distanceFlat = directionFlat.magnitude;
+        if (agent.destination != targetPoint.position)
+            agent.SetDestination(targetPoint.position);
 
-        // Rotación (se mantiene igual)
-        if (directionFlat.sqrMagnitude > 0.01f)
+        if (!agent.pathPending && agent.remainingDistance <= patrolPointTolerance)
+            currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
+    }
+
+    private void ChasePlayer()
+    {
+        if (!agent.enabled) return;
+        agent.isStopped = false;
+
+        agent.SetDestination(player.position);
+        playerStats?.ModifyStamina(-enemyData.drainRate * Time.deltaTime);
+        playerStats?.PauseRecovery(true);
+
+        float attackRange = weapon != null ? weapon.attackRange : enemyData.attackRange;
+
+        if (Vector3.Distance(transform.position, player.position) <= attackRange)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(directionFlat);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 5f * Time.deltaTime);
-        }
-
-        // -------------------------------------------------------------
-        // 🎯 LÓGICA DE MOVIMIENTO Y GRAVEDAD 🎯
-        // -------------------------------------------------------------
-
-        // Mueve en la dirección XZ
-        Vector3 moveVector = directionFlat.normalized * enemyData.moveSpeed;
-
-        // ✅ CORRECCIÓN: Fuerza de empuje constante hacia abajo (simulación de gravedad).
-        // Esto asegura que CharacterController.Move() siempre vea un cambio de Y, 
-        // lo cual evita que se "atasque" si está en el suelo.
-        float gravityPush = -9.81f; // Usa una fuerza negativa constante.
-
-        // Si el controlador está en el suelo, aplicamos un pequeño empuje; 
-        // si no, aplicamos la gravedad completa (si ya la manejas en otra variable, úsala).
-        if (controller.isGrounded)
-        {
-            // Empuje mínimo para asegurar el movimiento en la superficie.
-            moveVector.y = -2f;
+            if (!agent.isStopped) agent.isStopped = true;
+            if (weapon != null) weapon.TryAttack(playerStats);
+            else TryAttackPlayer();
         }
         else
         {
-            // Si no está en el suelo, usa la gravedad normal (o tu variable verticalVelocity).
-            // moveVector.y = verticalVelocity; // Si tienes una variable de velocidad vertical
-            moveVector.y = gravityPush; // Si solo quieres aplicar la fuerza.
-        }
-
-        // 🎯 DEBUG CLAVE: Muestra el vector que se está intentando mover
-        /*Debug.Log($"Movimiento Patrulla: {moveVector * Time.deltaTime}. Distancia: {distanceFlat}");*/
-
-        controller.Move(moveVector * Time.deltaTime);
-
-        // -------------------------------------------------------------
-
-        // Verificación de llegada
-        if (distanceFlat < patrolPointTolerance)
-        {
-            GoToNextPatrolPoint();
-        }
-        /*Debug.Log($"Patrullando hacia {targetPoint.name}. Posición actual: {transform.position}");*/
-        // Si esto se imprime, sabes que el script Patrol está siendo llamado, 
-        // y el problema es la llamada a controller.Move().
-    }
-    private void GoToNextPatrolPoint()
-    {
-        // Avanzar al siguiente punto de forma cíclica
-        currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
-        Debug.Log($"{gameObject.name} va al punto {currentPatrolIndex}");
-    }
-
-    public void ForceAlert()
-    {
-        if (currentState == EnemyState.Dead) return;
-
-        // Primero cambiamos a Alert (para visualización/sonido)
-        SetState(EnemyState.Alert);
-
-        // Luego pasamos a Chase (o lo manejamos en Update, como arriba)
-        ForceChase();
-        // Nota: El 'AlertManager.IsGlobalAlert' mantendrá el estado en Chase
-    }
-    private void ChasePlayer()
-    {
-        if (player == null) return;
-
-        PlayerStats playerStats = player.GetComponent<PlayerStats>();
-        if (playerStats == null || playerStats.CurrentHealth <= 0)
-            return; // Player is dead, do nothing
-
-        // Movement
-        Vector3 direction = (player.position - transform.position).normalized;
-        direction.y = 0f;
-        controller.Move(direction * moveSpeed * Time.deltaTime);
-
-        // Rotation
-        if (direction.sqrMagnitude > 0.01f)
-        {
-            Quaternion targetRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 5f * Time.deltaTime);
-        }
-
-        // Drain stamina
-        playerStats?.ModifyStamina(-drainRate * Time.deltaTime);
-        playerStats?.PauseRecovery(true);
-
-        // Attack if in range
-        float distance = Vector3.Distance(transform.position, player.position);
-        if (weapon != null && distance <= weapon.attackRange)
-        {
-            weapon.TryAttack(playerStats);
-        }
-        else if (distance <= enemyData.attackRange)
-        {
-            TryAttackPlayer();
+            if (agent.isStopped) agent.isStopped = false;
         }
     }
 
     private void TryAttackPlayer()
     {
-        if (Time.time < lastAttackTime + enemyData.attackCooldown || playerStats == null) return;
-
+        if (Time.time < lastAttackTime + enemyData.attackCooldown || playerStats == null || playerStats.CurrentHealth <= 0) return;
         playerStats.TakeDamage(enemyData.attackDamage);
         lastAttackTime = Time.time;
-        Debug.Log($"{gameObject.name} attacked player for {enemyData.attackDamage} damage!");
     }
 
-    private void StartAlertTimer()
+    // -----------------------------------------------------------------
+    //  STATES
+    // -----------------------------------------------------------------
+
+    public void TakeDamage(int amount, bool shotByPlayer = true)
     {
-        // 1. Si ya existe un temporizador (fue disparado de nuevo antes de que terminara el anterior), lo detenemos.
-        if (alertTimerCoroutine != null)
-        {
-            StopCoroutine(alertTimerCoroutine);
-        }
-
-        // 2. Iniciamos el nuevo temporizador.
-        alertTimerCoroutine = StartCoroutine(AlertCountdown());
-    }
-
-    private IEnumerator AlertCountdown()
-    {
-        // 1. Espera el tiempo límite
-        yield return new WaitForSeconds(alertTimeLimit);
-
-        // 2. Después del tiempo, si el enemigo no está muerto y la alerta no está activa...
-        if (currentState != EnemyState.Dead && !alertManager.Instance.IsGlobalAlert)
-        {
-            // ... activa la alerta global.
-            if (alertManager.Instance != null)
-            {
-                alertManager.Instance.TriggerGlobalAlert();
-                // Esto forzará a este enemigo y a todos los demás al estado Chase.
-            }
-        }
-
-        // 3. Limpiamos la referencia
-        alertTimerCoroutine = null;
-    }
-    public void TakeDamage(int amount)
-    {
-        Debug.Log(amount);
-        if (currentState == EnemyState.Dead) return;
+        if (isDead) return;
 
         currentHealth -= amount;
         currentHealth = Mathf.Max(0, currentHealth);
-        Debug.Log($"{gameObject.name} took {amount} damage. Health: {currentHealth}");
+        wasShotByPlayer = shotByPlayer;
 
-        if (currentHealth <= 0)
-        {
-            // El enemigo murió, cancelamos cualquier temporizador
-            if (alertTimerCoroutine != null)
-            {
-                StopCoroutine(alertTimerCoroutine);
-            }
-            Die();
-        }
-        else
-        {
-            // 1. Pasa al estado de Daño temporalmente
-            SetState(EnemyState.Damage);
-
-            // 2. Si el enemigo sobrevive, inicia (o reinicia) el contador de alerta
-            StartAlertTimer();
-
-            Debug.Log($"Enemigo herido. Temporizador de alerta iniciado/reiniciado.");
-        }
+        if (currentHealth <= 0) Die();
+        else SetState(EnemyState.Damage);
     }
 
     private void Die()
     {
         SetState(EnemyState.Dead);
-        Debug.Log($"{gameObject.name} died!");
+        isDead = true;
         playerStats?.PauseRecovery(false);
-
+        if (agent != null) { agent.isStopped = true; agent.enabled = false; }
         OnEnemyDied?.Invoke();
         gameObject.SetActive(false);
-
-        if (agent != null) agent.isStopped = true;
-
-        Debug.Log("Player died!");
-        gameObject.SetActive(false);
-        if (controller != null) controller.enabled = false;
-
-        OnPlayerDied?.Invoke(); // Notify enemies or other systems
     }
+
+    private void ReactToGlobalAlert(EnemyAI triggeringEnemy)
+    {
+        if (this != triggeringEnemy) ForceAlert(true);
+    }
+
+    public void ForceAlert(bool triggerJump = true)
+    {
+        if (isDead || currentState == EnemyState.Damage) return;
+        SetState(EnemyState.Alert, triggerJump);
+    }
+
+    private void SetState(EnemyState newState, bool triggerJump = false)
+    {
+        if (currentState == EnemyState.Damage && newState == EnemyState.Damage)
+        {
+            if (stateTimerCoroutine != null) StopCoroutine(stateTimerCoroutine);
+            stateTimerCoroutine = StartCoroutine(DamageTimerCoroutine());
+            return;
+        }
+
+        if (currentState == newState) return;
+
+        Debug.Log($"Enemy State: {currentState} → **{newState}**", this);
+
+        if (stateTimerCoroutine != null) StopCoroutine(stateTimerCoroutine);
+        if (currentState == EnemyState.Chase) playerStats?.PauseRecovery(false);
+        if (newState == EnemyState.Damage) _previousState = currentState;
+
+        currentState = newState;
+
+        switch (newState)
+        {
+            case EnemyState.Idle:
+                if (agent.enabled) agent.isStopped = true;
+                wasShotByPlayer = false;
+                break;
+            case EnemyState.Patrol:
+                wasShotByPlayer = false;
+                break;
+            case EnemyState.Alert:
+                if (alertManager.Instance != null && _playerInVision && !wasShotByPlayer)
+                {
+                    alertManager.Instance.TriggerGlobalAlert(this);
+                }
+
+                if (agent.enabled && agent.isOnNavMesh && triggerJump)
+                {
+                    StartCoroutine(JumpCoroutine());
+                }
+                else if (agent.enabled)
+                {
+                    agent.isStopped = true;
+                }
+
+                stateTimerCoroutine = StartCoroutine(AlertDelayCoroutine());
+                break;
+            case EnemyState.Chase:
+                wasShotByPlayer = true;
+                break;
+            case EnemyState.Damage:
+                if (agent.enabled) agent.isStopped = true;
+                stateTimerCoroutine = StartCoroutine(DamageTimerCoroutine());
+                break;
+            case EnemyState.Dead:
+                isDead = true;
+                if (agent.enabled) agent.isStopped = true;
+                break;
+        }
+    }
+
+    // -----------------------------------------------------------------
+    //  TIMERS
+    // -----------------------------------------------------------------
+
+    private IEnumerator JumpCoroutine()
+    {
+        float timer = 0f;
+        float halfDuration = alertJumpDuration / 2f;
+        float initialOffset = agent.baseOffset;
+
+        if (agent.enabled) agent.isStopped = true;
+
+        while (timer < halfDuration)
+        {
+            timer += Time.deltaTime;
+            float t = timer / halfDuration;
+            agent.baseOffset = Mathf.Lerp(initialOffset, initialOffset + alertJumpHeight, t);
+            yield return null;
+        }
+
+        timer = 0f;
+
+        while (timer < halfDuration)
+        {
+            timer += Time.deltaTime;
+            float t = timer / halfDuration;
+            agent.baseOffset = Mathf.Lerp(initialOffset + alertJumpHeight, initialOffset, t);
+            yield return null;
+        }
+
+        agent.baseOffset = initialOffset;
+
+        if (agent.enabled && currentState == EnemyState.Alert) agent.isStopped = false;
+    }
+
+    private IEnumerator AlertDelayCoroutine()
+    {
+        yield return new WaitForSeconds(alertDelay);
+
+        if (alertManager.Instance != null && alertManager.Instance.IsGlobalAlert)
+        {
+            SetState(EnemyState.Chase);
+        }
+        else if (PlayerInConeOfVision() || wasShotByPlayer)
+        {
+            SetState(EnemyState.Chase);
+        }
+        else
+        {
+            SetState(
+                (patrolPoints != null && patrolPoints.Length > 0)
+                ? EnemyState.Patrol
+                : EnemyState.Idle
+            );
+        }
+        stateTimerCoroutine = null;
+    }
+
+    private IEnumerator DamageTimerCoroutine()
+    {
+        yield return new WaitForSeconds(damageStateDuration);
+        SetState(_previousState == EnemyState.Chase ? EnemyState.Chase : EnemyState.Alert);
+        stateTimerCoroutine = null;
+    }
+
+    // -----------------------------------------------------------------
+    //  RESETEO & GIZMOS
+    // -----------------------------------------------------------------
 
     public void ResetEnemy(int healthToSet, Vector3 respawnPosition, Quaternion respawnRotation)
     {
-        if (!gameObject.activeSelf)
-            gameObject.SetActive(true);
-
-        damageStateTimer = 0f;
-
-        if (controller != null)
+        if (!gameObject.activeSelf) gameObject.SetActive(true);
+        if (agent != null)
         {
-            controller.enabled = false;
-            transform.position = respawnPosition;
-            transform.rotation = respawnRotation;
-            controller.enabled = true;
+            agent.enabled = false;
+            transform.SetPositionAndRotation(respawnPosition, respawnRotation);
+            agent.enabled = true;
+            agent.isStopped = true;
+            agent.ResetPath();
+        }
+        else
+        {
+            transform.SetPositionAndRotation(respawnPosition, respawnRotation);
         }
 
         currentHealth = healthToSet;
-        SetState(EnemyState.Normal);
+        wasShotByPlayer = false;
         isDead = false;
-       
 
+        SetState((patrolPoints != null && patrolPoints.Length > 0) ? EnemyState.Patrol : EnemyState.Idle);
         OnEnemyRespawned?.Invoke();
-    }
-
-    private void SetState(EnemyState newState)
-    {
-        if (currentState != newState)
-        {
-            currentState = newState;
-            Debug.Log($"Enemy state: {currentState}");
-        }
-    }
-
-    public void ForceChase()
-    {
-        if (currentState == EnemyState.Dead) return;
-
-        SetState(EnemyState.Chase);
-        wasShotByPlayer = true;
-        
-        //Debug.Log($"{gameObject.name} is now chasing the player!");
     }
 
     public string CurrentStateName()
@@ -454,9 +393,38 @@ public class EnemyAI : MonoBehaviour
         return currentState.ToString();
     }
 
+    void OnDrawGizmosSelected()
+    {
+#if UNITY_EDITOR
+        if (enemyData == null) return;
+        Vector3 eyePosition = transform.position + Vector3.up * 1.5f;
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(eyePosition, enemyData.viewDistance);
+
+        Gizmos.color = Color.blue;
+        Vector3 forward = transform.forward;
+        float halfAngle = enemyData.viewAngle / 2f;
+        Vector3 leftRayDirection = Quaternion.Euler(0, -halfAngle, 0) * forward;
+
+        UnityEditor.Handles.color = Color.blue;
+        UnityEditor.Handles.DrawWireArc(eyePosition, Vector3.up, leftRayDirection, enemyData.viewAngle, enemyData.viewDistance);
+
+        if (player != null && _playerInVision)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawLine(eyePosition, player.position);
+        }
+        else if (player != null && Vector3.Distance(eyePosition, player.position) <= enemyData.viewDistance)
+        {
+            if (_visionHit.collider != null)
+            {
+                Gizmos.color = Color.red;
+                Gizmos.DrawLine(eyePosition, _visionHit.point);
+                Gizmos.DrawLine(_visionHit.point, player.position);
+                Gizmos.DrawSphere(_visionHit.point, 0.1f);
+            }
+        }
+#endif
+    }
 }
-
-
-
-
-
