@@ -2,7 +2,7 @@
 using UnityEngine.AI;
 using System.Collections;
 using System.Linq;
-using UnityEditor;
+// using UnityEditor; // Comentado si no estás usando la librería de UnityEditor
 
 [RequireComponent(typeof(NavMeshAgent))]
 public class EnemyAI : MonoBehaviour
@@ -25,10 +25,14 @@ public class EnemyAI : MonoBehaviour
 
     [Header("Alert & Chase Settings")]
     public float alertDelay = 0.4f;
+    // 🎯 NUEVO: Tiempo límite para pasar a Alerta si sobrevive al daño (3.0s)
+    public float timeToAlertAfterDamage = 3.0f;
     public float chaseLostDelay = 3f;
     public float alertJumpHeight = 0.4f;
     public float alertJumpDuration = 0.25f;
     private Coroutine stateTimerCoroutine;
+    // 🎯 NUEVO: Coroutine específico para el temporizador de alerta por daño
+    private Coroutine damageAlertTimerCoroutine;
     private float timeSincePlayerLost = 0f;
 
     [Header("Runtime Info")]
@@ -44,7 +48,7 @@ public class EnemyAI : MonoBehaviour
     private bool wasShotByPlayer = false;
 
     // -----------------------------------------------------------------
-    //  LIFECYCLE
+    //  LIFECYCLE
     // -----------------------------------------------------------------
 
     void Awake()
@@ -81,7 +85,8 @@ public class EnemyAI : MonoBehaviour
 
         bool canSeePlayer = PlayerInConeOfVision();
 
-        timeSincePlayerLost = canSeePlayer ? 0f : timeSincePlayerLost + Time.deltaTime;
+        // 🛑 NO necesitamos esta línea si el enemigo persigue indefinidamente.
+        // timeSincePlayerLost = canSeePlayer ? 0f : timeSincePlayerLost + Time.deltaTime; 
 
         if (currentState != EnemyState.Damage && currentState != EnemyState.Alert)
         {
@@ -110,18 +115,15 @@ public class EnemyAI : MonoBehaviour
                 LookAtPlayerFlat();
                 break;
             case EnemyState.Chase:
-                if (!canSeePlayer && timeSincePlayerLost >= chaseLostDelay && (alertManager.Instance == null || !alertManager.Instance.IsGlobalAlert))
-                {
-                    SetState((patrolPoints != null && patrolPoints.Length > 0) ? EnemyState.Patrol : EnemyState.Idle);
-                    timeSincePlayerLost = 0f;
-                }
+               
+
                 if (currentState == EnemyState.Chase) ChasePlayer();
                 break;
         }
     }
 
     // -----------------------------------------------------------------
-    //  STATE LOGIC
+    //  STATE LOGIC
     // -----------------------------------------------------------------
 
     private void LookAtPlayerFlat()
@@ -200,7 +202,7 @@ public class EnemyAI : MonoBehaviour
     }
 
     // -----------------------------------------------------------------
-    //  STATES
+    //  STATES
     // -----------------------------------------------------------------
 
     public void TakeDamage(int amount, bool shotByPlayer = true)
@@ -211,8 +213,21 @@ public class EnemyAI : MonoBehaviour
         currentHealth = Mathf.Max(0, currentHealth);
         wasShotByPlayer = shotByPlayer;
 
-        if (currentHealth <= 0) Die();
-        else SetState(EnemyState.Damage);
+        if (currentHealth <= 0)
+        {
+            // Si muere, detener cualquier temporizador de alerta pendiente
+            if (damageAlertTimerCoroutine != null) StopCoroutine(damageAlertTimerCoroutine);
+            Die();
+        }
+        else
+        {
+            // Pasa al estado de Daño temporalmente
+            SetState(EnemyState.Damage);
+
+            // 🎯 INICIA EL TEMPORIZADOR DE ALERTA POR DAÑO
+            if (damageAlertTimerCoroutine != null) StopCoroutine(damageAlertTimerCoroutine);
+            damageAlertTimerCoroutine = StartCoroutine(DamageAlertTimerCoroutine());
+        }
     }
 
     private void Die()
@@ -265,6 +280,7 @@ public class EnemyAI : MonoBehaviour
                 wasShotByPlayer = false;
                 break;
             case EnemyState.Alert:
+                // La lógica de alerta global se activa aquí si detecta al jugador.
                 if (alertManager.Instance != null && _playerInVision && !wasShotByPlayer)
                 {
                     alertManager.Instance.TriggerGlobalAlert(this);
@@ -296,7 +312,7 @@ public class EnemyAI : MonoBehaviour
     }
 
     // -----------------------------------------------------------------
-    //  TIMERS
+    //  TIMERS
     // -----------------------------------------------------------------
 
     private IEnumerator JumpCoroutine()
@@ -355,13 +371,37 @@ public class EnemyAI : MonoBehaviour
 
     private IEnumerator DamageTimerCoroutine()
     {
+        // Duración del estado de 'stagger' (Daño)
         yield return new WaitForSeconds(damageStateDuration);
-        SetState(_previousState == EnemyState.Chase ? EnemyState.Chase : EnemyState.Alert);
+
+        // Al salir del estado de Daño, vuelve al estado anterior, o pasa a Alerta/Chase
+        if (currentState == EnemyState.Damage)
+        {
+            SetState(_previousState == EnemyState.Chase ? EnemyState.Chase : EnemyState.Alert);
+        }
         stateTimerCoroutine = null;
     }
 
+    // 🎯 NUEVO: TEMPORIZADOR DE ALERTA TRAS RECIBIR DAÑO (3 segundos)
+    private IEnumerator DamageAlertTimerCoroutine()
+    {
+        // Espera los segundos definidos
+        yield return new WaitForSeconds(timeToAlertAfterDamage);
+
+        // Si sobrevivió el tiempo y sigue vivo
+        if (currentHealth > 0)
+        {
+            Debug.Log($"El enemigo sobrevivió al disparo por más de {timeToAlertAfterDamage}s. Pasando a Alerta.", this);
+
+            // Forzamos el estado de Alerta (sin el salto de exclamación, ya que esto fue solo un tiempo de espera)
+            ForceAlert(triggerJump: false);
+        }
+
+        damageAlertTimerCoroutine = null;
+    }
+
     // -----------------------------------------------------------------
-    //  RESETEO & GIZMOS
+    //  RESETEO & GIZMOS
     // -----------------------------------------------------------------
 
     public void ResetEnemy(int healthToSet, Vector3 respawnPosition, Quaternion respawnRotation)
@@ -402,13 +442,11 @@ public class EnemyAI : MonoBehaviour
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(eyePosition, enemyData.viewDistance);
 
-        Gizmos.color = Color.blue;
-        Vector3 forward = transform.forward;
-        float halfAngle = enemyData.viewAngle / 2f;
-        Vector3 leftRayDirection = Quaternion.Euler(0, -halfAngle, 0) * forward;
-
-        UnityEditor.Handles.color = Color.blue;
-        UnityEditor.Handles.DrawWireArc(eyePosition, Vector3.up, leftRayDirection, enemyData.viewAngle, enemyData.viewDistance);
+        // UnityEditor.Handles.color = Color.blue; // Requiere 'using UnityEditor'
+        // Vector3 forward = transform.forward;
+        // float halfAngle = enemyData.viewAngle / 2f;
+        // Vector3 leftRayDirection = Quaternion.Euler(0, -halfAngle, 0) * forward;
+        // UnityEditor.Handles.DrawWireArc(eyePosition, Vector3.up, leftRayDirection, enemyData.viewAngle, enemyData.viewDistance);
 
         if (player != null && _playerInVision)
         {

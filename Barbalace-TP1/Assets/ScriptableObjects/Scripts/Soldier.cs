@@ -11,7 +11,7 @@ public class Soldier : ScriptableObject
     [Header("Vision Settings")]
     public float viewDistance = 10f;
     [Range(0f, 180f)]
-    public float viewAngle = 45f;
+    public float viewAngle = 60f;
 
     [Header("Proximity Stamina Drain")]
     public float drainDistance = 5f;

@@ -16,7 +16,7 @@ MonoBehaviour:
   moveSpeed: 3
   chaseSpeed: 3.5
   viewDistance: 10
-  viewAngle: 45
+  viewAngle: 60
   drainDistance: 5
   drainRate: 1
   attackDamage: 20
