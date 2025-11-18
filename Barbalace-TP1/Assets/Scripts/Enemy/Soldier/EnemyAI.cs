@@ -221,10 +221,17 @@ public class EnemyAI : MonoBehaviour
         }
         else
         {
-            // Pasa al estado de Daño temporalmente
+            // 🎯 IMPLEMENTACIÓN DEL REQUERIMIENTO:
+            // Si el daño fue causado por el jugador, activa la alerta global inmediatamente.
+            if (shotByPlayer && alertManager.Instance != null)
+            {
+                // Pasa 'this' (esta instancia del enemigo) como el desencadenante de la alerta.
+                alertManager.Instance.TriggerGlobalAlert(this);
+            }
+
             SetState(EnemyState.Damage);
 
-            // 🎯 INICIA EL TEMPORIZADOR DE ALERTA POR DAÑO
+            // Inicia el temporizador de alerta (los 3 segundos) solo si no murió
             if (damageAlertTimerCoroutine != null) StopCoroutine(damageAlertTimerCoroutine);
             damageAlertTimerCoroutine = StartCoroutine(DamageAlertTimerCoroutine());
         }
