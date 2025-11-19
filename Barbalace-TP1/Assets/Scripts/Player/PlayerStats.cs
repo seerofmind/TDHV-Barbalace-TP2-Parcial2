@@ -28,6 +28,8 @@ public class PlayerStats : MonoBehaviour
     private InputAction moveAction;
 
     private CharacterController controller;
+   
+    private float originalCenterY;
 
     public enum StaminaState { Idle, Draining, Recovering }
     private StaminaState staminaState = StaminaState.Idle;
@@ -54,7 +56,9 @@ public class PlayerStats : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
+        controller = GetComponent<CharacterController>();
         originalHeight = controller.height;
+        originalCenterY = controller.center.y;
 
         health = playerData.maxHealth;
         stamina = playerData.maxStamina;
@@ -107,13 +111,32 @@ public class PlayerStats : MonoBehaviour
     // ------------------------------- Crouch -------------------------------
     private void HandleCrouchInput()
     {
+        // 1. Obtener el input de Crouch
         bool crouchPressed = Keyboard.current.cKey.wasPressedThisFrame ||
                              Keyboard.current.leftCtrlKey.wasPressedThisFrame;
 
         if (crouchPressed)
         {
+            // 2. Invertir el estado de Crouch
             isCrouching = !isCrouching;
-            controller.height = isCrouching ? playerData.crouchHeight : originalHeight;
+
+            // 3. 🎯 CALCULAR EL 50% MENOS DE LA ALTURA ORIGINAL
+            if (isCrouching)
+            {
+                // Nueva altura = Altura original - (Altura original * 0.5) = Altura original * 0.5
+                float newCrouchHeight = originalHeight * 0.5f;
+                controller.height = newCrouchHeight;
+
+                // Opcional: Ajustar el centro del controlador para que no se "hunda" en el suelo.
+                // Si la altura se reduce a la mitad, el centro debe bajar a la mitad de su valor original.
+                controller.center = new Vector3(controller.center.x, originalCenterY * 0.5f, controller.center.z);
+            }
+            else
+            {
+                // Volver a la altura y centro originales
+                controller.height = originalHeight;
+                controller.center = new Vector3(controller.center.x, originalCenterY, controller.center.z);
+            }
         }
     }
 
