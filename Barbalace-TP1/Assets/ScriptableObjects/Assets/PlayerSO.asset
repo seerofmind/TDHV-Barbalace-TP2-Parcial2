@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0fbc74a9df4dbb645922f3b13629f16b, type: 3}
   m_Name: PlayerSO
   m_EditorClassIdentifier: 
-  health: 100
+  maxHealth: 100
   maxStamina: 10
   recoveryRate: 1
   sprintDrainRate: 2
